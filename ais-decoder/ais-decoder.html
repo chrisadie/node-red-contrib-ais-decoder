@@ -1,0 +1,26 @@
+<script type="text/javascript">
+    RED.nodes.registerType('ais-decoder',{
+        category: 'function',
+        color: '#a6bbcf',
+        defaults: {
+            name: {value:""}
+        },
+        inputs:1,
+        outputs:1,
+        icon: "function.svg",
+        label: function() {
+            return this.name||"ais-decoder";
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="ais-decoder">
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<script type="text/html" data-help-name="ais-decoder">
+    <p>Decodes AIS messages from an AIS receiver such as rtl-ais.</p>
+</script>
