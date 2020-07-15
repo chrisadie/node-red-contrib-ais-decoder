@@ -4,7 +4,6 @@
 //
 // License: see LICENSE file
 
-
 //
 // Register a creator function for ais-decoder
 //
@@ -15,7 +14,7 @@ module.exports = function(RED) {
         var nodeContext = node.context();
         nodeContext.set("fragmentList",[]);
         node.on('input', function(msg) {
-        		processDatagram(node,msg);
+        	processDatagram(node,msg);
         });
     }
     RED.nodes.registerType("ais-decoder",AisDecoder);
@@ -26,10 +25,11 @@ module.exports = function(RED) {
 // send resulting message[s] to the next node.
 //
 function processDatagram (node,msg) {
+	var i,frag,frags,mf;
 	var m = [];
 	var f = msg.payload.split('\r');
 	for (i=0;i<f.length;i++) {
-		var frag = parseFragment(f[i]);
+		frag = parseFragment(f[i]);
 		if (frag!=null) {
 			// Put the message into an array, in case we have to send more than one message
 			if (m.length==0) {
@@ -40,13 +40,14 @@ function processDatagram (node,msg) {
 			m[m.length-1].payload = f[i];
 			if (frag.fCount==1) {
 				// Single-fragment AIVDM sentence
-				m[m.length-1].aisData = decodeAisData(frag.fData);
+				frags = [frag];
+				m[m.length-1].aisData = decodeAisSentence(frags);
 			} else {
 				// Multi-fragment AIVDM sentence
-				var mf = processMultiFragments(node,frag);
+				mf = processMultiFragments(node,frag);
 				if (mf!=null) {
 					// We have a complete AIVDM sentence to return
-					m[m.length-1].aisData = decodeMultiFrag(mf);
+					m[m.length-1].aisData = decodeAisSentence(mf);
 				} else {
 					// AIVDM sentence still incomplete - we can't return it
 					m.pop();
@@ -77,6 +78,7 @@ function processMultiFragments(node,frag) {
 //
 function addFragmentToList(list,frag) {
 	var item;
+	var i;
 	for (i=0;i<list.length;i++) {
 		item = list[i];
 		if (item.length>0
@@ -172,27 +174,165 @@ function parseFragment(frag) {
 	result.fMessageId = parseInt(f[3], 10);
 	result.fRadioChannel = f[4];
 	result.fData = f[5];
-	result.fChecksum = f[6];
-	// ToDo: validate checksum
+	if (f[6].length!=4) {
+		return null;
+	}
+	result.fFillBits = parseInt(f[6]);
+	if (result.fFillBits==NaN || result.fFillBits<0 || result.fFillBits>5) {
+		return null;
+	}
+	if (f[6].slice(1,2)!="*") {
+		return null;
+	}
+	var cksm = parseInt(f[6].slice(2,4),16);
+	if (cksm != computeChecksum(frag)) {
+		return null;
+	}
 	return result;
 }
 
 //
-// Take an array of sentence fragments, concatenate the data, and return
-// the decoded information.
+// Compute checksum
 //
-function decodeMultiFrag(fArray) {
-	var data = ""
-	for (i=0;i<fArray.length;i++) {
-		data += fArray[i].fData;
+function computeChecksum(fragment) {
+	var buf = Buffer.from(fragment);
+	var csum = 0;
+	var i;
+	for (i=1;i<fragment.length-3;i++) {
+		csum = csum ^ buf[i];
 	}
-	return decodeAisData(data);
+	return csum;
 }
 
 //
-// Decode an AIS data string
+// Decode an AIS sentence. Input is a list of parsed fragments,
+// return value is an object carrying the information extracted from
+// the fragment payloads.
 //
-function decodeAisData(data) {
+function decodeAisSentence(frags) {
+	var data = [];
+	var aisData = {};
+	var i,b,mmsi;
+	// Concatenate the data from the fragments
+	for (i=0;i<frags.length;i++) {
+		data += frags[i].fData;
+	}
+	// Create a numeric array binPayload containing the raw
+	// binary 6-bit "nobbles", one nobble to each array member.
+	var rawPayload = Buffer.from(data);
+	var binPayload = [];
+	for (i=0;i<rawPayload.length;i++) {
+		b = rawPayload[i]-48;
+		if (b>40) b -= 8;
+		if (b<0 || b>63) {
+			return null;
+		}
+		binPayload[i] = b;
+	}
+	// Now start extracting data from binPayload
+	aisData.aisType = extractInt(binPayload,0,6);
+	aisData.aisRepeatIndicator = extractInt(binPayload,6,2);
+	mmsi = extractInt(binPayload,8,30);
+	aisData.aisMmsi = padLeft(mmsi.toString(),"0",9);
+    switch (aisData.aisType) {
+        case 1:
+        case 2:
+        case 3:
+            extractPositionReportA(aisData,binPayload);
+            break;
+        default:
+            break;
+    }
 	// @@@
+	return aisData;
+}
+
+const sixBit = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&\'()*+,-./0123456789:;<=>?";
+
+//
+// Convert nobble data to character string
+//
+function nobbleString(binNobbles,start,end) {
+	var i,data="";
+	for (i=start;i<end;i++) {
+		data = data + sixBit.slice(binNobbles[i],binNobbles[i]+1);
+	}
 	return data;
+}
+
+//
+// Pad str on left to len with pad
+//
+function padLeft(str,pad,len) {
+	if (pad.length>0) {
+		while (str.length<len) {
+			str = pad + str;
+		}
+	}
+	return str;
+}
+
+//
+// Extract an integer from nobble array. Second parameter is the bit
+// count to start from, nBits is the number of bits to extract.
+//
+function extractInt(nobbles,start,nBits) {
+	var result = 0;
+	var offset, theBit, bitOffset, i, nobble;
+	// Proceed bit by bit
+	for(i=0;i<nBits;i++) {
+		// Compute offset into nobbles; retrieve nobble
+		offset = Math.floor((start+i)/6);
+		nobble = nobbles[offset];
+		// Extract the bit we want
+		bitOffset = 5 - ((start+i)%6);
+		theBit = (nobble >> bitOffset) & 1;
+		// Push theBit onto the least-significant end of the result
+		result = result << 1;
+		result |= theBit;
+	}
+	return result;
+}
+
+//
+// Decode position report type A
+//
+function extractPositionReportA(aisData,binPayload) {
+    aisData.aisNavigationStatus = extractInt(binPayload,38,4);
+    var rot = extractInt(binPayload,42,8);
+    if (rot!=128) {
+        // Rate of turn information is available
+        aisData.aisRateOfTurn = decodeRateOfTurn(rot);
+    }
+}
+
+//
+// Rate of turn decodong
+//
+function decodeRateOfTurn(rot) {
+    var RateOfTurn = {};
+    rot &= 0xFF;
+    switch (rot) {
+        case 0:
+            RateOfTurn.direction = 0;   // Not turning
+            break;
+        case 0x80:
+            return null;                // No turning information available
+        case 0x7F:
+            RateOfTurn.direction = 1;   // Turning right
+            break
+        case 0x81:
+            RateOfTurn.direction = -1;  // Turning left
+            break;
+        default:
+            if ((rot & 0x80) == 0x80) {
+                rot = rot - 256;
+                RateOfTurn.direction = -1;
+            } else {
+                RateOfTurn.direction = 1;
+            }
+            RateOfTurn.rate = Math.pow(rot/4.733,2).toFixed();
+            break;
+    }
+    return RateOfTurn;
 }
