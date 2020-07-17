@@ -11,7 +11,7 @@ Run the following npm command in your Node-RED user directory (typically ~/.node
 ```
 npm install node-red-contrib-ais-decoder
 ```
-You will find a new node **ais decoder** in the function pallette.
+You will find a new node **ais decoder** in the 'parser' pallette of the node-red editor.
 
 ## Usage
 
@@ -23,17 +23,7 @@ If you are using the [rtl-ais](https://github.com/dgiardini/rtl-ais) software, y
 Any invalid AIS messages are silently ignored.
 
 ### Output
-Output messages contain an object called **ais** which contains the decoded information. The object structure is outlined below.
-
-| Object reference | Data Type | Valid message types  | Meaning |
-| ------------- | ------------- |
-| `msg.ais` | Object | All | Root object |
-| `msg.ais.type` | Integer | All | AIS message type. See Table 4 in [Raymond](https://gpsd.gitlab.io/gpsd/AIVDM.html) |
-| `msg.ais.repeatIndicator` | Integer | All | If non-zero, message has been relayed |
-| `msg.ais.mmsi` | String(9) | All | Mobile Marine Service Identifier - unique ID of a vessel |
-| `msg.ais.turning` | Object | 1 2 3 | If present, contains turning information |
-| `msg.ais.turning.direction` | Integer | 1 2 3 | 1=turning right; -1=turning left; 0=not turning |
-| `msg.ais.turning.rate` | Integer | 1 2 3 | If present, rate of turn in degrees per minute |
+The payload of an output message is an object containing the decoded information. See the file Output.pdf for more information.
 
 ## Example Flows
 

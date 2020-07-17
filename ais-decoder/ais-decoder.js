@@ -41,13 +41,13 @@ function processDatagram (node,msg) {
 			if (frag.fCount==1) {
 				// Single-fragment AIVDM sentence
 				frags = [frag];
-				m[m.length-1].aisData = decodeAisSentence(frags);
+				m[m.length-1].payload = decodeAisSentence(frags);
 			} else {
 				// Multi-fragment AIVDM sentence
 				mf = processMultiFragments(node,frag);
 				if (mf!=null) {
 					// We have a complete AIVDM sentence to return
-					m[m.length-1].aisData = decodeAisSentence(mf);
+					m[m.length-1].payload = decodeAisSentence(mf);
 				} else {
 					// AIVDM sentence still incomplete - we can't return it
 					m.pop();
@@ -234,7 +234,7 @@ function decodeAisSentence(frags) {
 	aisData.aisRepeatIndicator = extractInt(binPayload,6,2);
 	mmsi = extractInt(binPayload,8,30);
 	aisData.aisMmsi = padLeft(mmsi.toString(),"0",9);
-    switch (aisData.aisType) {
+    switch (aisData.type) {
         case 1:
         case 2:
         case 3:
@@ -302,7 +302,7 @@ function extractPositionReportA(aisData,binPayload) {
     var rot = extractInt(binPayload,42,8);
     if (rot!=128) {
         // Rate of turn information is available
-        aisData.aisRateOfTurn = decodeRateOfTurn(rot);
+        aisData.aisTurning = decodeRateOfTurn(rot);
     }
 }
 
@@ -310,29 +310,30 @@ function extractPositionReportA(aisData,binPayload) {
 // Rate of turn decodong
 //
 function decodeRateOfTurn(rot) {
-    var RateOfTurn = {};
+    var turning = {};
     rot &= 0xFF;
     switch (rot) {
         case 0:
-            RateOfTurn.direction = 0;   // Not turning
+            turning.direction = 0;   // Not turning
             break;
         case 0x80:
-            return null;                // No turning information available
+            turning = null;          // No turning information available
+            break;
         case 0x7F:
-            RateOfTurn.direction = 1;   // Turning right
+            turning.direction = 1;   // Turning right
             break
         case 0x81:
-            RateOfTurn.direction = -1;  // Turning left
+            turning.direction = -1;  // Turning left
             break;
         default:
             if ((rot & 0x80) == 0x80) {
                 rot = rot - 256;
-                RateOfTurn.direction = -1;
+                turning.direction = -1;
             } else {
-                RateOfTurn.direction = 1;
+                turning.direction = 1;
             }
-            RateOfTurn.rate = Math.pow(rot/4.733,2).toFixed();
+            turning.rate = Math.pow(rot/4.733,2).toFixed();
             break;
     }
-    return RateOfTurn;
+    return turning;
 }

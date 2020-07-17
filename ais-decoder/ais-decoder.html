@@ -1,6 +1,6 @@
 <script type="text/javascript">
     RED.nodes.registerType('ais-decoder',{
-        category: 'function',
+        category: 'parser',
         color: '#a6bbcf',
         defaults: {
             name: {value:""}
@@ -23,4 +23,60 @@
 
 <script type="text/html" data-help-name="ais-decoder">
     <p>Decodes AIS messages from an AIS receiver such as rtl-ais.</p>
+    <h3>Input</h3>
+        <dl class="message-properties">
+        <dt>payload
+            <span class="property-type">string</span>
+        </dt>
+        <dd>An AIS message to decode</dd>
+        </dl>
+    <h3>Output</h3>
+        <dl class="message-properties">
+        <dt>payload
+            <span class="property-type">object</span>
+        </dt>
+        <dd>Contains the decoded information</dd>
+        </dl>
+
+    <h3>Details</h3>
+    <p>The automatic identification system (AIS) is an automatic tracking system
+    that uses transponders on ships. AIS is intended, primarily, to allow ships
+    to view marine traffic in their area and to be seen by that traffic. Further
+    information is available in Wikipedia.</p>
+    <p>This node accepts AIS messages as input, decodes them, and presents the
+    decoded data at the output. It is mainly intended for use with the RTL-AIS
+    software, though it can easily be used in other contexts.</p>
+    
+    <h4>Input</h4>
+    <p>The input is a stream of AIS messages. There can be multiple AIS messages
+    within a single node-red message payload, as long as they are separated by
+    Carriage Return characters.</p>
+    <p>If you are using the RTL-AIS software, you should connect the input of
+    this ais decoder node to a <i>udp in</i> node, configured to listen on port
+    10110 (the default for RTL-AIS).</p>
+    <p>Any invalid AIS messages are silently ignored.</p>
+    
+    <h4>Output</h4>
+    <P>Output messages carry the decoded information in the payload, which is
+    an object, not a string. The possible object members are outlined below.
+    Note that:</p>
+    <ul>
+    <li>Which object members are present in the output depends on the input message.</li>
+    <li>One input message may result in zero, one or multiple output messages.</li>
+    </ul>
+
+    <p>See the file Output.pdf in the GurHub repository for further information.</p>
+    
+    <h3>References</h3>
+    <ul>
+        <li><a href="https://en.wikipedia.org/wiki/Automatic_identification_system)">AIS</a>
+        - Wikipedia article on AIS</li>
+        <li><a href="https://github.com/dgiardini/rtl-ais">RTL-AIS</a> - Software to receive
+        AIS messages through an RTL-SDR radio dongle
+        <li><a href="https://gpsd.gitlab.io/gpsd/AIVDM.html">AIVDM/AIVDO protocol decoding</a>,
+        by Eric S. Raymond - full description of AIS message format</li>
+        <li><a href="https://github.com/chrisadie/node-red-contrib-ais-decoder">GitHub</a>
+        - the node's github repository</li>
+    </ul>
+
 </script>
