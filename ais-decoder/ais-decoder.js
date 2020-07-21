@@ -1,8 +1,22 @@
-// ais-decoder.js
-//
-// Author: Chris Adie
-//
-// License: see LICENSE file
+/**
+ * Copyright 2020 Chris Adie
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * It is a condition of use of this software that it shall not be used in
+ * a safety-critical application, such as for marine navigation.
+ *
+ **/
 
 //
 // Register a creator function for ais-decoder
@@ -27,9 +41,13 @@ module.exports = function(RED) {
 function processDatagram (node,msg) {
 	var i,frag,frags,mf;
 	var m = [];
+    var err = {};
 	var f = msg.payload.split('\r');
 	for (i=0;i<f.length;i++) {
-		frag = parseFragment(f[i]);
+        err = {reason: ""};
+        f[i] = f[i].trim();
+        if (f[i].length==0) continue;   // Empty string is not an error
+		frag = parseFragment(f[i],err);
 		if (frag!=null) {
 			// Put the message into an array, in case we have to send more than one message
 			if (m.length==0) {
@@ -41,19 +59,25 @@ function processDatagram (node,msg) {
 			if (frag.fCount==1) {
 				// Single-fragment AIVDM sentence
 				frags = [frag];
-				m[m.length-1].payload = decodeAisSentence(frags);
+				m[m.length-1].payload = decodeAisSentence(frags,err);
 			} else {
 				// Multi-fragment AIVDM sentence
 				mf = processMultiFragments(node,frag);
 				if (mf!=null) {
 					// We have a complete AIVDM sentence to return
-					m[m.length-1].payload = decodeAisSentence(mf);
+					m[m.length-1].payload = decodeAisSentence(mf,err);
 				} else {
 					// AIVDM sentence still incomplete - we can't return it
 					m.pop();
 				}
 			}
 		}
+        if (err.reason.length>0) {
+            // Error parsing fragment - err contains the reason
+            console.log(err.fragment);
+            console.log(err.reason);
+            m.pop();
+        }
 	}
 	if (m.length>0) {
 		var mm = [m];
@@ -154,38 +178,46 @@ function removeUnwanted(list) {
 
 //
 // Parse and validate an AIVDM fragment and return the decoded information,
-// or null if there's a parse error.
+// or null if there's a parse error (setting err.reason).
 //
-function parseFragment(frag) {
+function parseFragment(frag,err) {
 	var result = {};
 	var f = frag.split(',');
+    err.fragment = frag;
 	if (f.length!=7) {
+        err.reason = "Wrong number of fields in fragment";
 		return null;
 	}
 	if (f[0]!="!AIVDM") {
+        err.reason = "Not an AIVDM message";
 		return null;
 	}
 	result.fHead = f[0];
 	result.fCount = parseInt(f[1], 10);
 	result.fNumber = parseInt(f[2], 10);
 	if (result.fCount==NaN || result.fNumber==NaN) {
+        err.reason = "Missing Count and Number fields";
 		return null;
 	}
 	result.fMessageId = parseInt(f[3], 10);
 	result.fRadioChannel = f[4];
 	result.fData = f[5];
 	if (f[6].length!=4) {
+        err.reason = "Final field length invalid";
 		return null;
 	}
 	result.fFillBits = parseInt(f[6]);
 	if (result.fFillBits==NaN || result.fFillBits<0 || result.fFillBits>5) {
+        err.reason = "Invalid number of fill bits";
 		return null;
 	}
 	if (f[6].slice(1,2)!="*") {
+        err.reason = "Missing asterisk from final field";
 		return null;
 	}
 	var cksm = parseInt(f[6].slice(2,4),16);
 	if (cksm != computeChecksum(frag)) {
+        err.reason = "Checksum failure";
 		return null;
 	}
 	return result;
@@ -209,7 +241,7 @@ function computeChecksum(fragment) {
 // return value is an object carrying the information extracted from
 // the fragment payloads.
 //
-function decodeAisSentence(frags) {
+function decodeAisSentence(frags,err) {
 	var data = [];
 	var aisData = {};
 	var i,b,mmsi;
@@ -225,39 +257,47 @@ function decodeAisSentence(frags) {
 		b = rawPayload[i]-48;
 		if (b>40) b -= 8;
 		if (b<0 || b>63) {
+            err.reason = "Invalid data in payload";
 			return null;
 		}
 		binPayload[i] = b;
 	}
+    var nBits = 6*rawPayload.length - frags[frags.length-1].fFillBits;
+    if (nBits<37) {
+        // Insufficient data
+        err.reason = "Insufficient data in payload";
+        return null;
+    }
 	// Now start extracting data from binPayload
 	aisData.aisType = extractInt(binPayload,0,6);
 	aisData.aisRepeatIndicator = extractInt(binPayload,6,2);
 	mmsi = extractInt(binPayload,8,30);
 	aisData.aisMmsi = padLeft(mmsi.toString(),"0",9);
-    switch (aisData.type) {
+    switch (aisData.aisType) {
         case 1:
         case 2:
         case 3:
-            extractPositionReportA(aisData,binPayload);
+            err.reason = extractPositionReportA(aisData,binPayload,nBits);
+            break;
+        case 5:
+            err.reason = extractStaticReport(aisData,binPayload,nBits);
+            break;
+        case 9:
+            err.reason = extractSarReport(aisData,binPayload,nBits);
+            break;
+        case 18:
+        case 19:
+            err.reason = extractPositionReportB(aisData,binPayload,nBits);
             break;
         default:
+            err.reason = "Unrecognised AIS message type " + aisData.aisType;
             break;
     }
-	// @@@
+	// Did we encounter an error?
+    if (err.reason.length>0) {
+        return null;
+    }
 	return aisData;
-}
-
-const sixBit = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&\'()*+,-./0123456789:;<=>?";
-
-//
-// Convert nobble data to character string
-//
-function nobbleString(binNobbles,start,end) {
-	var i,data="";
-	for (i=start;i<end;i++) {
-		data = data + sixBit.slice(binNobbles[i],binNobbles[i]+1);
-	}
-	return data;
 }
 
 //
@@ -274,9 +314,10 @@ function padLeft(str,pad,len) {
 
 //
 // Extract an integer from nobble array. Second parameter is the bit
-// count to start from, nBits is the number of bits to extract.
+// count to start from, nBits is the number of bits to extract, signed
+// is true if a signed integer is required.
 //
-function extractInt(nobbles,start,nBits) {
+function extractInt(nobbles,start,nBits,signed=false) {
 	var result = 0;
 	var offset, theBit, bitOffset, i, nobble;
 	// Proceed bit by bit
@@ -287,25 +328,170 @@ function extractInt(nobbles,start,nBits) {
 		// Extract the bit we want
 		bitOffset = 5 - ((start+i)%6);
 		theBit = (nobble >> bitOffset) & 1;
+        // To deal correctly with negative numbers, propogate the first bit up the result
+        if (signed && theBit && i==0) {
+            result = -1;
+        }
 		// Push theBit onto the least-significant end of the result
 		result = result << 1;
 		result |= theBit;
 	}
 	return result;
 }
+                            
+//
+// Extract a string from nobble array. Second parameter is the bit
+// count to start from, nBits is the number of bits to extract to form
+// the string.
+//
+
+const sixBit = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&\'()*+,-./0123456789:;<=>?";
+
+function extractString(binPayload,start,nBits) {
+    var str = "", strchr;
+    var offset, theBit, bitOffset, i, nobble, chr;
+    // Proceed bit by bit
+    for (i=0;i<nBits;i++) {
+        // Compute offset into nobbles; retrieve nobble
+        offset = Math.floor((start+i)/6);
+        nobble = binPayload[offset];
+        // Extract the bit we want
+        bitOffset = 5 - ((start+i)%6);
+        theBit = (nobble >> bitOffset) & 1;
+        strchr = strchr << 1;
+        strchr |= theBit;
+        if (i%6==5) {
+            // End of this char
+            str += sixBit[strchr];
+            strchr = 0;
+        }
+    }
+    return str;
+}
 
 //
-// Decode position report type A
+// Decode position report type A. Update the ais data object, and return
+// empty string, or error string.
 //
-function extractPositionReportA(aisData,binPayload) {
+function extractPositionReportA(aisData,binPayload,nBits) {
+    if (nBits<167) {
+        // Insufficient data in the payload for this message type
+        return "Insufficient data in payload";
+    }
     aisData.aisNavigationStatus = extractInt(binPayload,38,4);
     var rot = extractInt(binPayload,42,8);
     if (rot!=128) {
         // Rate of turn information is available
         aisData.aisTurning = decodeRateOfTurn(rot);
     }
+    var speed = extractInt(binPayload,50,10);
+    if (speed!=1023) {
+        // Speed information is available
+        aisData.aisSpeedOverGround = speed/10.0;
+    }
+    aisData.aisPositionAccuracy = extractInt(binPayload,60,1);
+    var long = extractInt(binPayload,61,28,true);
+    if (long!=0x6791AC0) {
+        // Longitude information available
+        aisData.aisLongitude = long/600000.0;
+    }
+    var lat = extractInt(binPayload,89,27,true);
+    if (lat!=0x3412140) {
+        // Latitude information available
+        aisData.aisLatitude = lat/600000.0;
+    }
+    var cog = extractInt(binPayload,116,12);
+    if (cog!=3600) {
+        // Course over ground available
+        aisData.aisCourseOverGround = cog/10.0;
+    }
+    var tHead = extractInt(binPayload,128,9);
+    if (tHead!=511) {
+        // True heading available
+        aisData.aisTrueHeading = tHead;
+    }
+    var tStamp = extractInt(binPayload,137,6);
+    if (tStamp<60) {
+        // Timestamp available
+        aisData.aisTimeStampSeconds = tStamp;
+    } else
+    if (tStamp<=63) {
+        // Positioning system info available
+        aisData.aisPositioningSystemStatus = tStamp-60;
+    }
+    var man = extractInt(binPayload,143,2);
+    if (man!=0) {
+        // Manoeuvre data available
+        aisData.aisManoeuvre = man;
+    }
+    aisData.aisRaim = extractInt(binPayload,148,1);
+    return "";
 }
 
+//
+// Decode position report type B. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractPositionReportB(aisData,binPayload,nBits) {
+    if (nBits<148) {
+        // Insufficient data in the payload for this message type
+        return "Insufficient data in payload";
+    }
+    var speed = extractInt(binPayload,46,10);
+    if (speed!=1023) {
+        // Speed information is available
+        aisData.aisSpeedOverGround = speed/10.0;
+    }
+    aisData.aisPositionAccuracy = extractInt(binPayload,56,1);
+    var long = extractInt(binPayload,57,28,true);
+    if (long!=0x6791AC0) {
+        // Longitude information available
+        aisData.aisLongitude = long/600000.0;
+    }
+    var lat = extractInt(binPayload,85,27,true);
+    if (lat!=0x3412140) {
+        // Latitude information available
+        aisData.aisLatitude = lat/600000.0;
+    }
+    var cog = extractInt(binPayload,112,12);
+    if (cog!=3600) {
+        // Course over ground available
+        aisData.aisCourseOverGround = cog/10.0;
+    }
+    var tHead = extractInt(binPayload,124,9);
+    if (tHead!=511) {
+        // True heading available
+        aisData.aisTrueHeading = tHead;
+    }
+    var tStamp = extractInt(binPayload,133,6);
+    if (tStamp<60) {
+        // Timestamp available
+        aisData.aisTimeStampSeconds = tStamp;
+    } else
+    if (tStamp<=63) {
+        // Positioning system info available
+        aisData.aisPositioningSystemStatus = tStamp-60;
+    }
+    if (aisData.aisType==19) {
+        // Extended message
+        if (nBits<306) {
+            return "Insufficient data in payload";
+        }
+        aisData.aisName = extractString(binPayload,143,120).trim();
+        aisData.aisName = trimTrailingAt(aisData.aisName);
+        aisData.aisShipType = extractInt(binPayload,263,8);
+        aisData.aisDimensionToBow = extractInt(binPayload,271,9);
+        aisData.aisDimensionToStern = extractInt(binPayload,280,9);
+        aisData.aisDimensionToPort = extractInt(binPayload,289,6);
+        aisData.aisDimensionToStarboard = extractInt(binPayload,295,6);
+        aisData.aisFixType = extractInt(binPayload,301,4);
+        aisData.aisRaim = extractInt(binPayload,305,1);
+    } else {
+        aisData.aisRaim = extractInt(binPayload,147,1);
+    }
+    return "";
+}
+                            
 //
 // Rate of turn decodong
 //
@@ -336,4 +522,114 @@ function decodeRateOfTurn(rot) {
             break;
     }
     return turning;
+}
+
+//
+// Decode static and voyage-related data. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractStaticReport(aisData,binPayload,nBits) {
+    if (nBits<420) {
+        // Insufficient data in the payload for this message type
+        return "Insufficient data in payload";
+    }
+    aisData.aisVersion = extractInt(binPayload,38,2);
+    aisData.aisShipId = extractInt(binPayload,40,30);
+    aisData.aisCallsign = extractString(binPayload,70,42).trim();
+    aisData.aisCallsign = trimTrailingAt(aisData.aisCallsign);
+    aisData.aisName = extractString(binPayload,112,120).trim();
+    aisData.aisName = trimTrailingAt(aisData.aisName);
+    aisData.aisShipType = extractInt(binPayload,232,8);
+    aisData.aisDimensionToBow = extractInt(binPayload,240,9);
+    aisData.aisDimensionToStern = extractInt(binPayload,249,9);
+    aisData.aisDimensionToPort = extractInt(binPayload,249,6);
+    aisData.aisDimensionToStarboard = extractInt(binPayload,264,6);
+    aisData.aisFixType = extractInt(binPayload,270,4);
+    // Create a Date with the ETA
+    var mo = extractInt(binPayload,274,4);
+    var da = extractInt(binPayload,278,5);
+    var ho = extractInt(binPayload,283,5);
+    var mi = extractInt(binPayload,288,6);
+    aisData.aisEta = new Date();
+    var tm = aisData.aisEta.getMonth()+1;
+    if (tm>=11 && mo<=2) {
+        // ETA is probably next year
+        var ty = aisData.aisEta.getFullYear();
+        ty++;
+        aisData.aisEta.setFullYear(ty);
+    }
+    aisData.aisEta.setMonth(mo-1);
+    aisData.aisEta.setDate(da);
+    aisData.aisEta.setHours(ho);
+    aisData.aisEta.setMinutes(mi);
+    aisData.aisEta.setSeconds(0);
+    aisData.aisDraught = extractInt(binPayload,294,8)/10.0;
+    var d = nBits-302;
+    if (d>120) {
+        d = 120;
+    }
+    aisData.aisDestination = extractString(binPayload,302,d).trim();
+    aisData.aisDestination = trimTrailingAt(aisData.aisDestination);
+    return "";
+}
+
+//
+// Trim trailing @ sign from string. Must be a simpler way to do this...
+//
+function trimTrailingAt(str) {
+    var i = str.length;
+    var found = false;
+    while (i>0 && str.charAt(i-1)=="@") {
+        i--;
+        found = true;
+    }
+    if (i==0 && !found) return str;
+    return str.slice(0,i);
+}
+
+//
+// Decode SAR aircraft position report. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractSarReport(aisData,binPayload,nBits) {
+    if (nBits<147) {
+        // Insufficient data in the payload for this message type
+        return "Insufficient data in payload";
+    }
+    var alt = extractInt(binPayload,38,12);
+    if (alt!=4095) {
+        aisData.aisAltitude = alt;
+    }
+    var speed = extractInt(binPayload,50,10);
+    if (speed!=1023) {
+        // Speed information is available
+        aisData.aisSpeedOverGround = speed*1.0;
+    }
+    aisData.aisPositionAccuracy = extractInt(binPayload,60,1);
+    var long = extractInt(binPayload,61,28,true);
+    if (long!=0x6791AC0) {
+        // Longitude information available
+        aisData.aisLongitude = long/600000.0;
+    }
+    var lat = extractInt(binPayload,89,27,true);
+    if (lat!=0x3412140) {
+        // Latitude information available
+        aisData.aisLatitude = lat/600000.0;
+    }
+    var cog = extractInt(binPayload,116,12);
+    if (cog!=3600) {
+        // Course over ground available
+        aisData.aisCourseOverGround = cog/10.0;
+    }
+    var tStamp = extractInt(binPayload,128,6);
+    if (tStamp<60) {
+        // Timestamp available
+        aisData.aisTimeStampSeconds = tStamp;
+    } else
+    if (tStamp<=63) {
+        // Positioning system info available
+        aisData.aisPositioningSystemStatus = tStamp-60;
+    }
+    aisData.aisRaim = extractInt(binPayload,148,1);
+    return "";
 }
