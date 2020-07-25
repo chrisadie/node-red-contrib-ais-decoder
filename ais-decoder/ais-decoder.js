@@ -39,50 +39,95 @@ module.exports = function(RED) {
 // send resulting message[s] to the next node.
 //
 function processDatagram (node,msg) {
-	var i,frag,frags,mf;
-	var m = [];
-    var err = {};
-	var f = msg.payload.split('\r');
-	for (i=0;i<f.length;i++) {
-        err = {reason: ""};
-        f[i] = f[i].trim();
-        if (f[i].length==0) continue;   // Empty string is not an error
-		frag = parseFragment(f[i],err);
-		if (frag!=null) {
-			// Put the message into an array, in case we have to send more than one message
-			if (m.length==0) {
-				m[0] = msg;
-			} else {
-				m.push({});
-			}
-			m[m.length-1].payload = f[i];
-			if (frag.fCount==1) {
-				// Single-fragment AIVDM sentence
-				frags = [frag];
-				m[m.length-1].payload = decodeAisSentence(frags,err);
-			} else {
-				// Multi-fragment AIVDM sentence
-				mf = processMultiFragments(node,frag);
-				if (mf!=null) {
-					// We have a complete AIVDM sentence to return
-					m[m.length-1].payload = decodeAisSentence(mf,err);
-				} else {
-					// AIVDM sentence still incomplete - we can't return it
-					m.pop();
-				}
-			}
-		}
-        if (err.reason.length>0) {
-            // Error parsing fragment - err contains the reason
-            console.log(err.fragment);
-            console.log(err.reason);
-            m.pop();
+	var m = [];     // List of messages to send on decode output
+    var e = [];     // List of messages to send on error output
+    var result;
+    var i;
+    var f = [];
+	var ff = msg.payload.split('\r');
+    // Remove empty fragments
+    for (i=0;i<ff.length;i++) {
+        ff[i] = ff[i].trim();
+        if (ff[i].length>0) {
+            f.push(ff[i]);
         }
-	}
-	if (m.length>0) {
-		var mm = [m];
-		node.send(mm);
-	}
+    }
+    // Process each fragment in turn
+	for (i=0;i<f.length;i++) {
+        result = processFragment(node,f[i]);
+        if (result===null) {
+            // No message needs to be sent
+            continue;
+        }
+        if (msg===null) {
+            msg = {};
+        }
+        msg.payload = result;
+        if (result.aisError) {
+            // Error - add a message to the error output queue
+            e.push(msg);
+        } else {
+            // We have a payload to send - add a message to the decode output queue
+            m.push(msg);
+        }
+        msg = null;
+    }
+    if (m.length>0 || e.length>0) {
+        var mm = [m,e];
+        node.send(mm);
+    }
+}
+
+//
+// Parse and decode a single fragment, and return a payload to be put into a message
+// If fragment is a non-final part of a multi-fragment sentence, store the
+// fragment for later and return null.
+//
+function processFragment(node,f) {
+    var err = {};
+    var frags,i,orig;
+    var result = {};
+    var frag = parseFragment(f,err);
+    if (frag===null) {
+        // Parse error
+        result = {"aisOriginal": f, "aisError": err.reason};
+        return result;
+    }
+    if (frag.fCount==1) {
+        // Single-fragment AIVDM sentence
+        frags = [frag];
+    } else {
+        // Multi-fragment AIVDM sentence
+        frags = processMultiFragments(node,frag);
+        if (frags===null) {
+            // Sentence still incomplete
+            return null;
+        }
+    }
+    // We have a complete AIVDM sentence to decode
+    result = decodeAisSentence(frags,err);
+    if (result===null) {
+        // Decode error
+        orig = reconstructFragments(frags);
+        result = {"aisOriginal": orig, "aisError": err.reason};
+        return result;
+    }
+    // aisOriginal should have all the fragments of the sentence
+    result.aisOriginal = reconstructFragments(frags);
+    return result;
+}
+
+//
+// Reconstruct a string containing the original fragments
+//
+function reconstructFragments(frags) {
+    var result = "";
+    var i;
+    for (i=0;i<frags.length;i++) {
+        if (i>0) result += "\n";
+        result += frags[i].fOriginal;
+    }
+    return result;
 }
 
 //
@@ -184,12 +229,13 @@ function parseFragment(frag,err) {
 	var result = {};
 	var f = frag.split(',');
     err.fragment = frag;
+    result.fOriginal = frag;
 	if (f.length!=7) {
         err.reason = "Wrong number of fields in fragment";
 		return null;
 	}
 	if (f[0]!="!AIVDM") {
-        err.reason = "Not an AIVDM message";
+        err.reason = "Not an AIVDM message: "+f[0];
 		return null;
 	}
 	result.fHead = f[0];
@@ -382,7 +428,7 @@ function extractPositionReportA(aisData,binPayload,nBits) {
     var rot = extractInt(binPayload,42,8);
     if (rot!=128) {
         // Rate of turn information is available
-        aisData.aisTurning = decodeRateOfTurn(rot);
+        decodeRateOfTurn(aisData,rot);
     }
     var speed = extractInt(binPayload,50,10);
     if (speed!=1023) {
@@ -495,33 +541,30 @@ function extractPositionReportB(aisData,binPayload,nBits) {
 //
 // Rate of turn decodong
 //
-function decodeRateOfTurn(rot) {
-    var turning = {};
+function decodeRateOfTurn(aisData,rot) {
     rot &= 0xFF;
     switch (rot) {
         case 0:
-            turning.direction = 0;   // Not turning
+            aisData.aisTurningDirection = 0;   // Not turning
             break;
         case 0x80:
-            turning = null;          // No turning information available
-            break;
+            break;                   // No turning information available
         case 0x7F:
-            turning.direction = 1;   // Turning right
+            aisData.aisTurningDirection = 1;   // Turning right
             break
         case 0x81:
-            turning.direction = -1;  // Turning left
+            aisData.aisTurningDirection = -1;  // Turning left
             break;
         default:
             if ((rot & 0x80) == 0x80) {
                 rot = rot - 256;
-                turning.direction = -1;
+                aisData.aisTurningDirection = -1;
             } else {
-                turning.direction = 1;
+                aisData.aisTurningDirection = 1;
             }
-            turning.rate = Math.pow(rot/4.733,2).toFixed();
+            aisData.aisTurningRate = Math.pow(rot/4.733,2).toFixed();
             break;
     }
-    return turning;
 }
 
 //
