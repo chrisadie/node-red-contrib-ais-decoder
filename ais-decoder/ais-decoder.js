@@ -28,61 +28,34 @@ module.exports = function(RED) {
         var nodeContext = node.context();
         nodeContext.set("fragmentList",[]);
         node.on('input', function(msg) {
-        	processDatagram(node,msg);
+        	processMessage(node,msg);
         });
     }
     RED.nodes.registerType("ais-decoder",AisDecoder);
 }
 
-//
-// Divide datagram into AIVDM data fragments, process them, and
-// send resulting message[s] to the next node.
-//
-function processDatagram (node,msg) {
-	var m = [];     // List of messages to send on decode output
-    var e = [];     // List of messages to send on error output
-    var result;
-    var i;
-    var f = [];
-	var ff = msg.payload.split('\r');
-    // Remove empty fragments
-    for (i=0;i<ff.length;i++) {
-        ff[i] = ff[i].trim();
-        if (ff[i].length>0) {
-            f.push(ff[i]);
-        }
-    }
-    // Process each fragment in turn
-	for (i=0;i<f.length;i++) {
-        result = processFragment(node,f[i]);
+function processMessage(node,msg) {
+    var result = {};
+    var f;
+    f = msg.payload.trim();
+    if (f.length>0) {
+        result = processFragment(node,f);
         if (result===null) {
-            // No message needs to be sent
-            continue;
-        }
-        if (msg===null) {
-            msg = {};
-        }
-        msg.payload = result;
-        if (result.aisError) {
-            // Error - add a message to the error output queue
-            e.push(msg);
+            result = {"resultCode": 2};
         } else {
-            // We have a payload to send - add a message to the decode output queue
-            m.push(msg);
+            if (result.errorInfo) {
+                result.resultCode = 3;
+            } else {
+                result.resultCode = 0;
+            }
         }
-        msg = null;
+    } else {
+        result = {"resultCode": 1};
     }
-    if (m.length>0 || e.length>0) {
-        var mm = [m,e];
-        node.send(mm);
-    }
+    msg.payload = result;
+    node.send(msg);
 }
 
-//
-// Parse and decode a single fragment, and return a payload to be put into a message
-// If fragment is a non-final part of a multi-fragment sentence, store the
-// fragment for later and return null.
-//
 function processFragment(node,f) {
     var err = {};
     var frags,i,orig;
@@ -90,7 +63,7 @@ function processFragment(node,f) {
     var frag = parseFragment(f,err);
     if (frag===null) {
         // Parse error
-        result = {"aisOriginal": f, "aisError": err.reason};
+        result = {"aisOriginal": f, "errorInfo": err.reason};
         return result;
     }
     if (frag.fCount==1) {
@@ -109,10 +82,9 @@ function processFragment(node,f) {
     if (result===null) {
         // Decode error
         orig = reconstructFragments(frags);
-        result = {"aisOriginal": orig, "aisError": err.reason};
+        result = {"aisOriginal": orig, "errorInfo": err.reason};
         return result;
     }
-    // aisOriginal should have all the fragments of the sentence
     result.aisOriginal = reconstructFragments(frags);
     return result;
 }
@@ -524,7 +496,7 @@ function extractPositionReportB(aisData,binPayload,nBits) {
             return "Insufficient data in payload";
         }
         aisData.aisName = extractString(binPayload,143,120).trim();
-        aisData.aisName = trimTrailingAt(aisData.aisName);
+        aisData.aisName = normaliseString(aisData.aisName);
         aisData.aisShipType = extractInt(binPayload,263,8);
         aisData.aisDimensionToBow = extractInt(binPayload,271,9);
         aisData.aisDimensionToStern = extractInt(binPayload,280,9);
@@ -579,9 +551,9 @@ function extractStaticReport(aisData,binPayload,nBits) {
     aisData.aisVersion = extractInt(binPayload,38,2);
     aisData.aisShipId = extractInt(binPayload,40,30);
     aisData.aisCallsign = extractString(binPayload,70,42).trim();
-    aisData.aisCallsign = trimTrailingAt(aisData.aisCallsign);
+    aisData.aisCallsign = normaliseString(aisData.aisCallsign);
     aisData.aisName = extractString(binPayload,112,120).trim();
-    aisData.aisName = trimTrailingAt(aisData.aisName);
+    aisData.aisName = normaliseString(aisData.aisName);
     aisData.aisShipType = extractInt(binPayload,232,8);
     aisData.aisDimensionToBow = extractInt(binPayload,240,9);
     aisData.aisDimensionToStern = extractInt(binPayload,249,9);
@@ -612,22 +584,16 @@ function extractStaticReport(aisData,binPayload,nBits) {
         d = 120;
     }
     aisData.aisDestination = extractString(binPayload,302,d).trim();
-    aisData.aisDestination = trimTrailingAt(aisData.aisDestination);
+    aisData.aisDestination = normaliseString(aisData.aisDestination);
     return "";
 }
 
 //
-// Trim trailing @ sign from string. Must be a simpler way to do this...
+// Replace one or more @ with spaces, then trim trailing space
 //
-function trimTrailingAt(str) {
-    var i = str.length;
-    var found = false;
-    while (i>0 && str.charAt(i-1)=="@") {
-        i--;
-        found = true;
-    }
-    if (i==0 && !found) return str;
-    return str.slice(0,i);
+function normaliseString(str) {
+    var noAt = str.replace(/@/g," ");
+    return noAt.trim();
 }
 
 //

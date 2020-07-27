@@ -6,7 +6,7 @@
             name: {value:""}
         },
         inputs:1,
-        outputs:2,
+        outputs:1,
         icon: "function.svg",
         label: function() {
             return this.name||"ais-decoder";
@@ -48,22 +48,13 @@
     software, though it can easily be used in other contexts.</p>
     
     <h4>Input</h4>
-    <p>The input is a stream of AIS messages. There can be multiple AIS messages
-    within a single node-red message payload, as long as they are separated by
-    Carriage Return characters.</p>
-    <p>If you are using the RTL-AIS software, you should connect the input of
-    this ais decoder node to a <i>udp in</i> node, configured to listen on port
-    10110 (the default for RTL-AIS).</p>
-    <p>Any invalid AIS messages are silently ignored.</p>
+    <p>The input is a stream of AIS messages.</p>
     
     <h4>Output</h4>
     <P>Output messages carry the decoded or error information in the payload, which is
     an object. The possible object members are described in <a href="https://github.com/chrisadie/node-red-contrib-ais-decoder/blob/master/output-spec.pdf">output-spec.pdf</a>.
-    Note that:</p>
-    <ul>
-    <li>Which object members are present in the output depends on the input message.</li>
-    <li>One input message may result in zero, one or multiple output messages.</li>
-    </ul>
+    Note that the type of input AIS message determines which object members are present in the output.
+    </p>
     
     <h3>References</h3>
     <ul>
