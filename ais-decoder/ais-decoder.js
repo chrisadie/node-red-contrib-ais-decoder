@@ -225,8 +225,8 @@ function parseFragment(frag,err) {
 		return null;
 	}
 	result.fFillBits = parseInt(f[6]);
-	if (result.fFillBits==NaN || result.fFillBits<0 || result.fFillBits>5) {
-        err.reason = "Invalid number of fill bits";
+	if (result.fFillBits==NaN || result.fFillBits<0 || result.fFillBits>6) {
+        err.reason = "Invalid number of fill bits: "+result.fFillBits;
 		return null;
 	}
 	if (f[6].slice(1,2)!="*") {
@@ -282,8 +282,7 @@ function decodeAisSentence(frags,err) {
 	}
     var nBits = 6*rawPayload.length - frags[frags.length-1].fFillBits;
     if (nBits<37) {
-        // Insufficient data
-        err.reason = "Insufficient data in payload";
+        err.reason = "Cannot decode common data block: insufficient data in payload. Expected at least 37, only found  " + nBits;
         return null;
     }
 	// Now start extracting data from binPayload
@@ -297,15 +296,49 @@ function decodeAisSentence(frags,err) {
         case 3:
             err.reason = extractPositionReportA(aisData,binPayload,nBits);
             break;
+        case 4:
+        case 11:
+            err.reason = extractBaseStationReport(aisData,binPayload,nBits);
+            break;
         case 5:
             err.reason = extractStaticReport(aisData,binPayload,nBits);
+            break;
+        case 6:
+            err.reason = extractBinaryAddressedMessage(aisData,binPayload,nBits);
+            break;
+        case 8:
+            err.reason = extractBinaryBroadcastMessage(aisData,binPayload,nBits);
             break;
         case 9:
             err.reason = extractSarReport(aisData,binPayload,nBits);
             break;
+        case 10:
+            err.reason = extractUtcEnquiry(aisData,binPayload,nBits);
+            break;
+        case 16:
+            err.reason = extractAssignmentModeCommand(aisData,binPayload,nBits);
+            break;
+        case 17:
+            err.reason = extractDgnssBroadcastBinaryMessage(aisData,binPayload,nBits);
+            break;
         case 18:
         case 19:
             err.reason = extractPositionReportB(aisData,binPayload,nBits);
+            break;
+        case 20:
+            err.reason = extractDataLinkManagement(aisData,binPayload,nBits);
+            break;
+        case 21:
+            err.reason = extractAidToNavigationReport(aisData,binPayload,nBits);
+            break;
+        case 22:
+            err.reason = extractChannelManagement(aisData,binPayload,nBits);
+            break;
+        case 24:
+            err.reason = extractStaticReport24(aisData,binPayload,nBits);
+            break;
+        case 25:
+            err.reason = extractSingleSlotBinaryMessage(aisData,binPayload,nBits);
             break;
         default:
             err.reason = "Unrecognised AIS message type " + aisData.aisType;
@@ -388,13 +421,32 @@ function extractString(binPayload,start,nBits) {
 }
 
 //
+// Extract binary data, returning a string of bits
+//
+function extractBinary(binPayload,start,nBits) {
+    var str = "";
+    var offset, theBit, bitOffset, i, nobble;
+    // Proceed bit by bit
+    for (i=0;i<nBits;i++) {
+        // Compute offset into nobbles; retrieve nobble
+        offset = Math.floor((start+i)/6);
+        nobble = binPayload[offset];
+        // Extract the bit we want
+        bitOffset = 5 - ((start+i)%6);
+        theBit = (nobble >> bitOffset) & 1;
+        str += theBit ? "1" : "0";
+    }
+    return str;
+}
+
+//
 // Decode position report type A. Update the ais data object, and return
 // empty string, or error string.
 //
 function extractPositionReportA(aisData,binPayload,nBits) {
-    if (nBits<167) {
-        // Insufficient data in the payload for this message type
-        return "Insufficient data in payload";
+    var lenerr = checkPayloadLength(aisData,nBits,149);
+    if (lenerr.length>0) {
+        return lenerr;
     }
     aisData.aisNavigationStatus = extractInt(binPayload,38,4);
     var rot = extractInt(binPayload,42,8);
@@ -451,9 +503,9 @@ function extractPositionReportA(aisData,binPayload,nBits) {
 // empty string, or error string.
 //
 function extractPositionReportB(aisData,binPayload,nBits) {
-    if (nBits<148) {
-        // Insufficient data in the payload for this message type
-        return "Insufficient data in payload";
+    var lenerr = checkPayloadLength(aisData,nBits,148);
+    if (lenerr.length>0) {
+        return lenerr;
     }
     var speed = extractInt(binPayload,46,10);
     if (speed!=1023) {
@@ -492,8 +544,9 @@ function extractPositionReportB(aisData,binPayload,nBits) {
     }
     if (aisData.aisType==19) {
         // Extended message
-        if (nBits<306) {
-            return "Insufficient data in payload";
+        lenerr = checkPayloadLength(aisData,nBits,306);
+        if (lenerr.length>0) {
+            return lenerr;
         }
         aisData.aisName = extractString(binPayload,143,120).trim();
         aisData.aisName = normaliseString(aisData.aisName);
@@ -544,9 +597,9 @@ function decodeRateOfTurn(aisData,rot) {
 // empty string, or error string.
 //
 function extractStaticReport(aisData,binPayload,nBits) {
-    if (nBits<420) {
-        // Insufficient data in the payload for this message type
-        return "Insufficient data in payload";
+    var lenerr = checkPayloadLength(aisData,nBits,420);
+    if (lenerr.length>0) {
+        return lenerr;
     }
     aisData.aisVersion = extractInt(binPayload,38,2);
     aisData.aisShipId = extractInt(binPayload,40,30);
@@ -601,9 +654,9 @@ function normaliseString(str) {
 // empty string, or error string.
 //
 function extractSarReport(aisData,binPayload,nBits) {
-    if (nBits<147) {
-        // Insufficient data in the payload for this message type
-        return "Insufficient data in payload";
+    var lenerr = checkPayloadLength(aisData,nBits,147);
+    if (lenerr.length>0) {
+        return lenerr;
     }
     var alt = extractInt(binPayload,38,12);
     if (alt!=4095) {
@@ -640,5 +693,261 @@ function extractSarReport(aisData,binPayload,nBits) {
         aisData.aisPositioningSystemStatus = tStamp-60;
     }
     aisData.aisRaim = extractInt(binPayload,148,1);
+    return "";
+}
+
+//
+// Decode base station report. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractBaseStationReport(aisData,binPayload,nBits) {
+    var lenerr = checkPayloadLength(aisData,nBits,149);
+    if (lenerr.length>0) {
+        return lenerr;
+    }
+    var y = extractInt(binPayload,38,14);
+    var mo = extractInt(binPayload,52,4);
+    var d = extractInt(binPayload,56,5);
+    var h = extractInt(binPayload,61,5);
+    var mi = extractInt(binPayload,66,6);
+    var s = extractInt(binPayload,72,6);
+    aisData.aisBaseTime = new Date(y,mo-1,d,h,mi,s,0);
+    aisData.aisPositionAccuracy = extractInt(binPayload,78,1);
+    var long = extractInt(binPayload,79,28,true);
+    if (long!=0x6791AC0) {
+        // Longitude information available
+        aisData.aisLongitude = long/600000.0;
+    }
+    var lat = extractInt(binPayload,107,27,true);
+    if (lat!=0x3412140) {
+        // Latitude information available
+        aisData.aisLatitude = lat/600000.0;
+    }
+    aisData.aisFixType = extractInt(binPayload,134,4);
+    aisData.aisRaim = extractInt(binPayload,148,1);
+    return "";
+}
+
+//
+// Decode binary addressed message. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractBinaryAddressedMessage(aisData,binPayload,nBits) {
+    var lenerr = checkPayloadLength(aisData,nBits,88);
+    if (lenerr.length>0) {
+        return lenerr;
+    }
+    aisData.aisSequenceNumber = extractInt(binPayload,38,2);
+    var mmsi = extractInt(binPayload,40,30);
+    aisData.aisDestinationMmsi = padLeft(mmsi.toString(),"0",9);
+    aisData.aisRetransmitted = extractInt(binPayload,70,1);
+    aisData.aisDesignatedAreaCode = extractInt(binPayload,72,10);
+    aisData.aisFunctionalId = extractInt(binPayload,82,6);
+    var binLength = nBits - 88;
+    if (binLength>920) binLength = 920;
+    if (binLength>0) {
+        aisData.aisBinaryData = extractBinary(binPayload,88,binLength);
+        // ToDo: interpret binary data where possible
+    }
+    return "";
+}
+                                              
+//
+// Decode binary broadcast message. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractBinaryBroadcastMessage(aisData,binPayload,nBits) {
+    var lenerr = checkPayloadLength(aisData,nBits,56);
+    if (lenerr.length>0) {
+        return lenerr;
+    }
+    aisData.aisDesignatedAreaCode = extractInt(binPayload,40,10);
+    aisData.aisFunctionalId = extractInt(binPayload,50,6);
+    var binLength = nBits - 56;
+    if (binLength>952) binLength = 952;
+    if (binLength>0) {
+        aisData.aisBinaryData = extractBinary(binPayload,56,binLength);
+        // ToDo: interpret binary data where possible
+    }
+    return "";
+}
+
+//
+// Decode DGNSS broadcast message. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractDgnssBroadcastBinaryMessage(aisData,binPayload,nBits) {
+    var lenerr = checkPayloadLength(aisData,nBits,80);
+    if (lenerr.length>0) {
+        return lenerr;
+    }
+    var long = extractInt(binPayload,40,18,true);
+    if (long!=0x01a838) {
+        // Longitude information available
+        aisData.aisLongitude = long/600.0;
+    }
+    var lat = extractInt(binPayload,58,17,true);
+    if (lat!= 0x00d548) {
+        // Latitude information available
+        aisData.aisLatitude = lat/600.0;
+    }
+    var binLength = nBits - 80;
+    if (binLength>736) binLength = 736;
+    if (binLength>0) {
+        aisData.aisBinaryData = extractBinary(binPayload,80,binLength);
+    }
+    return "";
+}
+
+//
+// Decode Aid-to-navigation message. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractAidToNavigationReport(aisData,binPayload,nBits) {
+    var lenerr = checkPayloadLength(aisData,nBits,272);
+    if (lenerr.length>0) {
+        return lenerr;
+    }
+    aisData.aisNavAid = extractInt(binPayload,38,5);
+    var n = extractString(binPayload,43,120);
+    if (n.length>0) {
+        if (n.charAt(n.length-1)=="@") {
+            // Need to look at name extension field
+            if (nBits>272) {
+                n += extractString(binPayload,272,nBits-272);;
+            }
+        }
+    }
+    aisData.aisName = normaliseString(n.trim());
+    aisData.aisPositionAccuracy = extractInt(binPayload,163,1);
+    var long = extractInt(binPayload,164,28,true);
+    if (long!=0x6791AC0) {
+        // Longitude information available
+        aisData.aisLongitude = long/600000.0;
+    }
+    var lat = extractInt(binPayload,192,27,true);
+    if (lat!=0x3412140) {
+        // Latitude information available
+        aisData.aisLatitude = lat/600000.0;
+    }
+    aisData.aisDimensionToBow = extractInt(binPayload,219,9);
+    aisData.aisDimensionToStern = extractInt(binPayload,228,9);
+    aisData.aisDimensionToPort = extractInt(binPayload,237,6);
+    aisData.aisDimensionToStarboard = extractInt(binPayload,243,6);
+    aisData.aisFixType = extractInt(binPayload,249,4);
+    var tStamp = extractInt(binPayload,253,6);
+    if (tStamp<60) {
+        // Timestamp available
+        aisData.aisTimeStampSeconds = tStamp;
+    } else
+    if (tStamp<=63) {
+        // Positioning system info available
+        aisData.aisPositioningSystemStatus = tStamp-60;
+    }
+    aisData.aisOffPosition = extractInt(binPayload,259,1);
+    aisData.aisRaim = extractInt(binPayload,268,1);
+    aisData.aisVirtualAid = extractInt(binPayload,269,1);
+    aisData.aisAssignedMode = extractInt(binPayload,270,1);
+    return "";
+}
+
+//
+// Decode UTC enquiry message. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractUtcEnquiry(aisData,binPayload,nBits) {
+    var lenerr = checkPayloadLength(aisData,nBits,72);
+    if (lenerr.length>0) {
+        return lenerr;
+    }
+    var mmsi = extractInt(binPayload,40,30);
+    aisData.aisDestinationMmsi = padLeft(mmsi.toString(),"0",9);
+    return "";
+}
+
+//
+// Decode type 24 message. Update the ais data object, and return
+// empty string, or error string.
+//
+function extractStaticReport24(aisData,binPayload,nBits) {
+    var lenerr = checkPayloadLength(aisData,nBits,40);
+    if (lenerr.length>0) {
+        return lenerr;
+    }
+    var part = extractInt(binPayload,38,2);
+    switch (part) {
+        case 0:
+            aisData.aisType24Part = "A";
+            lenerr = checkPayloadLength(aisData,nBits,160);
+            if (lenerr.length>0) {
+                return lenerr;
+            }
+            aisData.aisName = extractString(binPayload,40,120).trim();
+            aisData.aisName = normaliseString(aisData.aisName);
+            return "";
+        case 1:
+            aisData.aisType24Part = "B";
+            lenerr = checkPayloadLength(aisData,nBits,168);
+            if (lenerr.length>0) {
+                return lenerr;
+            }
+            aisData.aisShipType = extractInt(binPayload,40,8);
+            aisData.aisVendorId = extractString(binPayload,48,42).trim();
+            aisData.aisVendorId = normaliseString(aisData.aisVendorId);
+            aisData.aisUnitModelCode = extractInt(binPayload,66,4);
+            aisData.aisUnitSerialNumber = extractInt(binPayload,70,20);
+            aisData.aisCallsign = extractString(binPayload,90,42).trim();
+            aisData.aisCallsign = normaliseString(aisData.aisCallsign);
+            aisData.aisDimensionToBow = extractInt(binPayload,132,9);
+            aisData.aisDimensionToStern = extractInt(binPayload,141,9);
+            aisData.aisDimensionToPort = extractInt(binPayload,150,6);
+            aisData.aisDimensionToStarboard = extractInt(binPayload,156,6);
+            var mmsi = extractInt(binPayload,132,30);
+            aisData.aisMothershipMmsi = padLeft(mmsi.toString(),"0",9);
+            return "";
+        default:
+            return "Invalid part indicator in type 24 message";
+    }
+}
+
+//
+// Decode type 20 message.
+//
+function extractDataLinkManagement(aisData,binPayload,nBits) {
+    // ToDo: decode data link management information
+    return "";
+}
+
+//
+// Decode type 22 message.
+//
+function extractChannelManagement(aisData,binPayload,nBits) {
+    // ToDo: decode channel management information
+    return "";
+}
+
+//
+// Decode type 16 message.
+//
+function extractAssignmentModeCommand(aisData,binPayload,nBits) {
+    // ToDo: decode assignment mode command
+    return "";
+}
+
+//
+// Decode type 25 message.
+//
+function extractSingleSlotBinaryMessage(aisData,binPayload,nBits) {
+    // ToDo: decode single slot binary message
+    return "";
+}
+
+//
+// Check for an erroneous payload length
+//
+function checkPayloadLength(aisData,nBits,minimum) {
+    if (nBits<minimum) {
+        return "Cannot decode message type "+aisData.aisType+": insufficient data in payload. Expected at least "+minimum+", only found "+nBits;
+    }
     return "";
 }
