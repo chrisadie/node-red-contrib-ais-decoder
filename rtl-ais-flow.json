@@ -1,0 +1,145 @@
+[
+    {
+        "id": "bd99be41.16e01",
+        "type": "tab",
+        "label": "RTL-AIS",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "88e32bce.f600b8",
+        "type": "udp in",
+        "z": "bd99be41.16e01",
+        "name": "rtl-ais",
+        "iface": "",
+        "port": "10110",
+        "ipv": "udp4",
+        "multicast": "false",
+        "group": "",
+        "datatype": "utf8",
+        "x": 150,
+        "y": 160,
+        "wires": [
+            [
+                "51696a9f.be3804"
+            ]
+        ]
+    },
+    {
+        "id": "a54ead5.d1139d",
+        "type": "ais-decoder",
+        "z": "bd99be41.16e01",
+        "name": "",
+        "x": 450,
+        "y": 160,
+        "wires": [
+            [
+                "c4b8de59.2cf9f"
+            ]
+        ]
+    },
+    {
+        "id": "3bb49be2.69784c",
+        "type": "file",
+        "z": "bd99be41.16e01",
+        "name": "Live output file",
+        "filename": "/home/pi/node-red-contrib-ais-decoder/live-output.json",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "encoding": "none",
+        "x": 780,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d5c86b82.6d0ac8",
+        "type": "comment",
+        "z": "bd99be41.16e01",
+        "name": "Live AIS",
+        "info": "# Live AIS data recorder\n# \nThis flow listens on port 10110 for UDP packets from the rtl-ais software. It decodes the packets and stores the decoded information in JSON format in a local file.\n\nIf an erroneous packet is detected, a message is logged in the node-red debugger.\n",
+        "x": 160,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "51696a9f.be3804",
+        "type": "split",
+        "z": "bd99be41.16e01",
+        "name": "",
+        "splt": "\\r",
+        "spltType": "str",
+        "arraySplt": 1,
+        "arraySpltType": "len",
+        "stream": false,
+        "addname": "",
+        "x": 290,
+        "y": 160,
+        "wires": [
+            [
+                "a54ead5.d1139d"
+            ]
+        ],
+        "info": "If the datagram from rtl-ais contains multiple AIS message fragments, split them into individual node-red messages."
+    },
+    {
+        "id": "c4b8de59.2cf9f",
+        "type": "switch",
+        "z": "bd99be41.16e01",
+        "name": "",
+        "property": "resultCode",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "0",
+                "vt": "num"
+            },
+            {
+                "t": "eq",
+                "v": "1",
+                "vt": "num"
+            },
+            {
+                "t": "eq",
+                "v": "2",
+                "vt": "num"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 4,
+        "x": 610,
+        "y": 160,
+        "wires": [
+            [
+                "3bb49be2.69784c"
+            ],
+            [],
+            [],
+            [
+                "6b2524e.b6d2b5c"
+            ]
+        ]
+    },
+    {
+        "id": "6b2524e.b6d2b5c",
+        "type": "debug",
+        "z": "bd99be41.16e01",
+        "name": "Error",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 750,
+        "y": 180,
+        "wires": []
+    }
+]

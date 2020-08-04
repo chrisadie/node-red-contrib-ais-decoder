@@ -1,0 +1,153 @@
+[
+    {
+        "id": "14bdb17a.99661f",
+        "type": "tab",
+        "label": "Sample file",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "7bdf820b.1b9934",
+        "type": "file in",
+        "z": "14bdb17a.99661f",
+        "name": "Sample File",
+        "filename": "/home/pi/node-red-contrib-ais-decoder/nmea-sample",
+        "format": "lines",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "none",
+        "x": 290,
+        "y": 180,
+        "wires": [
+            [
+                "497583d2.20533c"
+            ]
+        ]
+    },
+    {
+        "id": "14bf5c85.ae32b3",
+        "type": "inject",
+        "z": "14bdb17a.99661f",
+        "name": "Timestamp",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 120,
+        "y": 180,
+        "wires": [
+            [
+                "7bdf820b.1b9934"
+            ]
+        ]
+    },
+    {
+        "id": "497583d2.20533c",
+        "type": "ais-decoder",
+        "z": "14bdb17a.99661f",
+        "name": "",
+        "x": 490,
+        "y": 180,
+        "wires": [
+            [
+                "c4284232.9c76c8"
+            ]
+        ]
+    },
+    {
+        "id": "c4284232.9c76c8",
+        "type": "switch",
+        "z": "14bdb17a.99661f",
+        "name": "",
+        "property": "resultCode",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "3",
+                "vt": "num"
+            },
+            {
+                "t": "eq",
+                "v": "0",
+                "vt": "num"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 3,
+        "x": 670,
+        "y": 180,
+        "wires": [
+            [
+                "8db26243.764e18"
+            ],
+            [
+                "3f3dc1ca.e2dcce"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "8db26243.764e18",
+        "type": "debug",
+        "z": "14bdb17a.99661f",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 870,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "3f3dc1ca.e2dcce",
+        "type": "function",
+        "z": "14bdb17a.99661f",
+        "name": "Filter",
+        "func": "if (msg.payload.messageType==9) { \n    return msg;\n}",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 870,
+        "y": 200,
+        "wires": [
+            [
+                "aa63b075.bccf9"
+            ]
+        ]
+    },
+    {
+        "id": "aa63b075.bccf9",
+        "type": "debug",
+        "z": "14bdb17a.99661f",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 1010,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "33d20a0e.610b1e",
+        "type": "comment",
+        "z": "14bdb17a.99661f",
+        "name": "Sample file decoding",
+        "info": "# AIS Message File Decoding\n# \nEdit the Sample File node to specify a file of AIS messages to process. Use the Filter node to pick out particular message types you are interested in. Click the button on the Timestamp node to initiate the decode.\n\nA large sample file of AIS messages can be found at the [AIS Hub](http://www.aishub.net/downloads/nmea-sample.zip).",
+        "x": 160,
+        "y": 100,
+        "wires": []
+    }
+]
