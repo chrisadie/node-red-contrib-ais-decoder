@@ -6,7 +6,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "AIS"
+    "AIS",
+    "node-red"
   ],
   "main" : "ais-decoder/ais-decoder.js",
   "author" : "Chris Adie",
