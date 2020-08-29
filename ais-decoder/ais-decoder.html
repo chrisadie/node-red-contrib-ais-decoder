@@ -1,16 +1,17 @@
 <script type="text/javascript">
     RED.nodes.registerType('ais-decoder',{
         category: 'parser',
-        color: '#a6bbcf',
+        color: '#DEBD5C',
         defaults: {
             name: {value:""}
         },
         inputs:1,
         outputs:1,
-        icon: "function.svg",
+        icon: "file.svg",
         label: function() {
-            return this.name||"ais-decoder";
-        }
+            return this.name||"ais";
+        },
+        paletteLabel: "ais"
     });
 </script>
 
@@ -37,13 +38,13 @@
         </dt>
         <dd>0 = no error; 1 = blank input; 2 = partial message; 3 = error</dd>
         <dt>originalAisMessage
-            <span class="property-type">string</span>
+            <span class="property-type">string array</span>
         </dt>
-        <dd>Original AIS message text (if resultCode is 0 or 3)</dd>
+        <dd>Original AIS message text (if resultCode is 0 or 3). Each array element is an AIS message fragment.</dd>
         <dt>payload
             <span class="property-type">object</span>
         </dt>
-        <dd>Contains the decoded information (if resultCode is 0). See ouput-spec.pdf for more information.</dd>
+        <dd>Contains the decoded information (if resultCode is 0). See <a href="https://github.com/chrisadie/node-red-contrib-ais-decoder/blob/master/output-spec.pdf">output-spec.pdf</a> for more information.</dd>
         <dt>errorInfo
             <span class="property-type">string</span>
         </dt>

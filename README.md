@@ -13,19 +13,20 @@ Run the following npm command in your Node-RED user directory (typically `~/.nod
 ```
 npm install node-red-contrib-ais-decoder
 ```
-You will find a new node **`ais decoder`** in the 'parser' pallette of the node-red editor.
+You will find a new node **`ais`** in the 'parser' pallette of the node-red editor.
 
 ## Usage
 
 ### Input
 The input is a stream of AIS messages. There must be no more than one AIS message per node-red message.
 
-Some AIS messages have multiple parts. Each part should be in its own node-red message, and the parts should be presented in sequence. The ais-decoder will accumulate the parts until all parts have been received before outputting the decoded information.
+Some AIS messages have multiple parts. Each part should be in its own node-red message, and the parts should be presented in sequence. The AIS decoder will accumulate the parts until all parts have been received before outputting the decoded information.
 
 ### Output
 The output message contains the decoded data or error information. See the node description in the Node-Red editor and the file [output-spec.pdf](output-spec.pdf) for more information.
 
 ## Example Flows
+To load an example flow, go to the node-red menu at the top right of the screen and select Import. Click on Examples, then choose the relevant example from the node-red-contrib-ais-decoder folder.
 
 ### Live AIS data recorder
 
@@ -45,8 +46,8 @@ This flow reads one or more AIS messages from a web input form and displays the 
 
 ## References
 
-1. (Wikipedia article on AIS)[https://en.wikipedia.org/wiki/Automatic_identification_system]
-2. Software to receive AIS messages through an RTL-SDR radio dongle)[https://github.com/dgiardini/rtl-ais]
-3. (AIVDM/AIVDO protocol decoding)[https://gpsd.gitlab.io/gpsd/AIVDM.html] by Eric S. Raymond - full description of AIS message format
-4. (GitHub - the node's github repository)[https://github.com/chrisadie/node-red-contrib-ais-decoder]
+1. [Wikipedia article on AIS](https://en.wikipedia.org/wiki/Automatic_identification_system)
+2. [Software to receive AIS messages through an RTL-SDR radio dongle](https://github.com/dgiardini/rtl-ais)
+3. [AIVDM/AIVDO protocol decoding](https://gpsd.gitlab.io/gpsd/AIVDM.html) by Eric S. Raymond - full description of AIS message format
+4. [GitHub - the node's github repository](https://github.com/chrisadie/node-red-contrib-ais-decoder)
 

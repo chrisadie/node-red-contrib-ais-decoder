@@ -59,8 +59,9 @@ function processMessage(node,msg) {
                 msg.payload = result;
                 msg.originalAisMessage = result.aisOriginal;
                 result.aisOriginal = undefined;
-                msg.payload.talkerId = msg.originalAisMessage.slice(1,3);
+                msg.payload.talkerId = msg.originalAisMessage[0].slice(1,3);
                 msg.resultCode = 0;
+                addTextFields(msg);
             }
         }
     } else {
@@ -109,14 +110,13 @@ function processFragment(node,f) {
 }
 
 //
-// Reconstruct a string containing the original fragments
+// Reconstruct a string array containing the original fragments
 //
 function reconstructFragments(frags) {
-    var result = "";
+    var result = [];
     var i;
     for (i=0;i<frags.length;i++) {
-        if (i>0) result += "\n";
-        result += frags[i].fOriginal;
+        result.push(frags[i].fOriginal);
     }
     return result;
 }
@@ -544,7 +544,7 @@ function extractPositionReportA(aisData,binPayload,nBits) {
         // Timestamp available
         aisData.timeStampSeconds = tStamp;
     } else
-    if (tStamp<=63) {
+    if (tStamp>60 && tStamp<=63) {
         // Positioning system info available
         aisData.positioningSystemStatus = tStamp-60;
     }
@@ -587,7 +587,7 @@ function extractPositionReportB(aisData,binPayload,nBits) {
         // Timestamp available
         aisData.timeStampSeconds = tStamp;
     } else
-    if (tStamp<=63) {
+    if (tStamp>60 && tStamp<=63) {
         // Positioning system info available
         aisData.positioningSystemStatus = tStamp-60;
     }
@@ -684,8 +684,8 @@ function extractStaticReport(aisData,binPayload,nBits) {
     if (d>120) {
         d = 120;
     }
-    aisData.aisDestination = extractString(binPayload,302,d).trim();
-    aisData.aisDestination = normaliseString(aisData.aisDestination);
+    aisData.destination = extractString(binPayload,302,d).trim();
+    aisData.destination = normaliseString(aisData.destination);
     return "";
 }
 
@@ -726,7 +726,7 @@ function extractSarReport(aisData,binPayload,nBits) {
         // Timestamp available
         aisData.timeStampSeconds = tStamp;
     } else
-    if (tStamp<=63) {
+    if (tStamp>60 && tStamp<=63) {
         // Positioning system info available
         aisData.positioningSystemStatus = tStamp-60;
     }
@@ -838,7 +838,7 @@ function extractAidToNavigationReport(aisData,binPayload,nBits) {
         if (n.charAt(n.length-1)=="@") {
             // Need to look at name extension field
             if (nBits>272) {
-                n += extractString(binPayload,272,nBits-272);;
+                n += extractString(binPayload,272,nBits-272);
             }
         }
     }
@@ -855,7 +855,7 @@ function extractAidToNavigationReport(aisData,binPayload,nBits) {
         // Timestamp available
         aisData.timeStampSeconds = tStamp;
     } else
-    if (tStamp<=63) {
+    if (tStamp>60 && tStamp<=63) {
         // Positioning system info available
         aisData.positioningSystemStatus = tStamp-60;
     }
@@ -880,8 +880,7 @@ function extractUtcEnquiry(aisData,binPayload,nBits) {
 }
 
 //
-// Decode type 24 message. Update the ais data object, and return
-// empty string, or error string.
+// Decode static report (message type 24).
 //
 function extractStaticReport24(aisData,binPayload,nBits) {
     var lenerr = checkPayloadLength(aisData,nBits,40);
@@ -1004,8 +1003,12 @@ function checkPayloadLength(aisData,nBits,minimum) {
 //
                                               
 const dispatch = [
-    {"mty": 6,  "dac": 1,  "fid": 40,  "func": interpret_6_1_40},
-    {"mty":25,  "dac": 1,  "fid":  0,  "func": interpret_25_1_0},
+    {"mty": 6,  "dac": 0,  "fid":  0,                            "text": "Monitoring aids to navigation"},
+    {"mty": 6,  "dac": 1,  "fid":  2,                            "text": "Interrogation for specified FMs within the IAI branch"},
+    {"mty": 6,  "dac": 1,  "fid":  3,                            "text": "Capability interrogation"},
+    {"mty": 6,  "dac": 1,  "fid":  4,                            "text": "Capability reply"},
+    {"mty": 6,  "dac": 1,  "fid": 40,  "func": interpret_6_1_40, "text": "Number of persons on board"},
+    {"mty":25,  "dac": 1,  "fid":  0,  "func": interpret_25_1_0, "text": "Text using 6-bit ASCII"},
     // ToDo: extend the decoding capabilities for messages 6 8 and 25. See https://www.iala-aism.org/asm/
 ];
                                               
@@ -1015,7 +1018,12 @@ function interpretBinaryData(aisData,binPayload,start,binLength) {
         if (dispatch[i].mty==aisData.messageType &&
             dispatch[i].dac==aisData.designatedAreaCode &&
             dispatch[i].fid==aisData.functionalId) {
-            return dispatch[i].func(aisData,binPayload,start,binLength);
+                aisData.messageSubtype_text = dispatch[i].text;
+            if (dispatch[i].func===undefined) {
+                return "";
+            } else {
+                return dispatch[i].func(aisData,binPayload,start,binLength);
+            }
         }
     }
     return "";
@@ -1038,7 +1046,7 @@ function interpret_25_1_0(aisData,binPayload,start,binLength) {
         lenerr = "Cannot fully decode message type 25 (1,0): insufficient data in payload.";
     } else {
         var n = extractInt(binPayload,start,11);
-        if (n) aisData.message25TextSequenceNunmer = n;
+        if (n) aisData.message25TextSequenceNumber = n;
         if (binlength>=17) {
             var s = extractString(binPayload,start+11,binLength-11).trim();
             aisData.message25Text = normaliseString(s);
@@ -1047,3 +1055,281 @@ function interpret_25_1_0(aisData,binPayload,start,binLength) {
     return lenerr;
 }
 
+//
+// Add *_text fields to the message payload
+//
+function addTextFields(msg) {
+    for (var i=0;i<talkerId_enum.length;i++) {
+        if (talkerId_enum[i].id==msg.payload.talkerId) {
+            msg.payload.talkerId_text = talkerId_enum[i].desc;
+            break;
+        }
+    }
+    msg.payload.messageType_text = textMember(msg,"messageType");
+    msg.payload.navigationStatus_text = textMember(msg,"navigationStatus");
+    msg.payload.turningDirection_text = textMember(msg,"turningDirection",1);
+    msg.payload.positionAccuracy_text = textMember(msg,"positionAccuracy");
+    msg.payload.positioningSystemStatus_text = textMember(msg,"positioningSystemStatus");
+    msg.payload.manoeuvre_text = textMember(msg,"manoeuvre");
+    msg.payload.shipType_text = textMember(msg,"shipType");
+    msg.payload.fixType_text = textMember(msg,"fixType");
+    msg.payload.navAid_text = textMember(msg,"navAid");
+}
+
+//
+// Return the textual interpretation of the given payload member
+//
+function textMember(msg,memberName,offset=0) {
+    var result;
+    var member = eval("msg.payload."+memberName);
+    if (!isNaN(member)) {
+        member += offset;
+        var lengthEnumArray = eval(memberName+"_enum.length");
+        if (member < lengthEnumArray) {
+            result = eval(memberName+"_enum[member]");
+        } else {
+            result = unexpected;
+        }
+    }
+    return result;
+}
+                                           
+const unexpected = "Unexpected value";
+const reserved = "Reserved for future use";
+                                           
+const talkerId_enum = [
+    {id: "AI", desc: "Mobile AIS station"},
+    {id: "AB", desc: "NMEA 4.0 base AIS station"},
+    {id: "AD", desc: "NMEA 4.0 dependent AIS base station"},
+    {id: "AN", desc: "NMEA 4.0 aid to navigation AIS station"},
+    {id: "AR", desc: "NMEA 4.0 AIS receiving station"},
+    {id: "AS", desc: "NMEA 4.0 limited base station"},
+    {id: "AT", desc: "NMEA 4.0 AIS transmitting station"},
+    {id: "AX", desc: "NMEA 4.0 repeater AIS station"},
+    {id: "BS", desc: "Base AIS station "},
+    {id: "SA", desc: "NMEA 4.0 physical shore AIS station"}
+];
+                                           
+const messageType_enum = [
+    unexpected, //0
+    "Position Report Class A", //1
+    "Position Report Class A (Assigned schedule)", //2
+    "Position Report Class A (Response to interrogation)", //3
+    "Base Station Report", //4
+    "Static and Voyage Related Data", //5
+    "Binary Addressed Message", //6
+    "Binary Acknowledge", //7
+    "Binary Broadcast Message", //8
+    "Standard SAR Aircraft Position Report", //9
+    "UTC and Date Inquiry", //10
+    "UTC and Date Response", //11
+    "Addressed Safety Related Message", //12
+    "Safety Related Acknowledgement", //13
+    "Safety Related Broadcast Message", //14
+    "Interrogation", //15
+    "Assignment Mode Command", //16
+    "DGNSS Binary Broadcast Message", //17
+    "Standard Class B CS Position Report", //18
+    "Extended Class B Equipment Position Report", //19
+    "Data Link Management", //20
+    "Aid-to-Navigation Report", //21
+    "Channel Management", //22
+    "Group Assignment Command", //23
+    "Static Data Report", //24
+    "Single Slot Binary Message", //25
+    "Multiple Slot Binary Message With Communications State", //26
+    "Position Report For Long-Range Applications" //27
+];
+
+const navigationStatus_enum = [
+    "Under way using engine",
+    "At anchor",
+    "Not under command",
+    "Restricted manoeuverability",
+    "Constrained by her draught",
+    "Moored",
+    "Aground",
+    "Engaged in Fishing",
+    "Under way sailing",
+    "Reserved for future amendment of Navigational Status for HSC",
+    "Reserved for future amendment of Navigational Status for WIG",
+    reserved,
+    reserved,
+    reserved,
+    "AIS-SART is active",
+    "Not defined"
+];
+
+const turningDirection_enum = [
+    "Turning left", // -1
+    "Not turning",  //  0
+    "Turning right" //  1
+];
+
+const positionAccuracy_enum = [
+    "Unaugmented GNSS fix with uncertainty more than 10m",
+    "DGPS-quality fix with an accuracy of better than 10m"
+];
+                                           
+const positioningSystemStatus_enum = [
+    unexpected,
+    "Manual input mode",
+    "Dead reckoning mode",
+    "Inoperative"
+];
+
+const manoeuvre_enum = [
+    unexpected,
+    "no special manoeuvre",
+    "special manoeuvre"
+];
+                                           
+const shipType_enum = [
+    unexpected, // 0
+    reserved,   // 1
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    reserved,   //19
+    "Wing in ground", //20
+    "Wing in ground (WIG), Hazardous category A",
+    "Wing in ground (WIG), Hazardous category B",
+    "Wing in ground (WIG), Hazardous category C",
+    "Wing in ground (WIG), Hazardous category D",
+    "Wing in ground (WIG), "+reserved,
+    "Wing in ground (WIG), "+reserved,
+    "Wing in ground (WIG), "+reserved,
+    "Wing in ground (WIG), "+reserved,
+    "Wing in ground (WIG), "+reserved, //29
+    "Fishing",
+    "Towing",
+    "Towing: length exceeds 200m or breadth exceeds 25m",
+    "Dredging or underwater operations",
+    "Diving operations",
+    "Military operations",
+    "Sailing",
+    "Pleasure craft",
+    reserved,
+    reserved, //39
+    "High speed craft", //40
+    "High speed craft (HSC), Hazardous category A",
+    "High speed craft (HSC), Hazardous category B",
+    "High speed craft (HSC), Hazardous category C",
+    "High speed craft (HSC), Hazardous category D",
+    "High speed craft (HSC), "+reserved,
+    "High speed craft (HSC), "+reserved,
+    "High speed craft (HSC), "+reserved,
+    "High speed craft (HSC), "+reserved,
+    "High speed craft (HSC), No additional information",
+    "Pilot vessel", //50
+    "Search and rescue vessel",
+    "Tug",
+    "Port tender",
+    "Anti-pollution equipment",
+    "Law enforcement",
+    "Spare - Local Vessel",
+    "Spare - Local Vessel",
+    "Medical transport",
+    "Noncombatant ship according to RR Resolution No. 18",
+    "Passenger", //60
+    "Passenger, Hazardous category A",
+    "Passenger, Hazardous category B",
+    "Passenger, Hazardous category C",
+    "Passenger, Hazardous category D",
+    "Passenger, "+reserved,
+    "Passenger, "+reserved,
+    "Passenger, "+reserved,
+    "Passenger, "+reserved,
+    "Passenger, No additional information",
+    "Cargo", //70
+    "Cargo, Hazardous category A",
+    "Cargo, Hazardous category B",
+    "Cargo, Hazardous category C",
+    "Cargo, Hazardous category D",
+    "Cargo, "+reserved,
+    "Cargo, "+reserved,
+    "Cargo, "+reserved,
+    "Cargo, "+reserved,
+    "Cargo, No additional information",
+    "Tanker", //80
+    "Tanker, Hazardous category A",
+    "Tanker, Hazardous category B",
+    "Tanker, Hazardous category C",
+    "Tanker, Hazardous category D",
+    "Tanker, "+reserved,
+    "Tanker, "+reserved,
+    "Tanker, "+reserved,
+    "Tanker, "+reserved,
+    "Tanker, No additional information",
+    "Other", //90
+    "Other, Hazardous category A",
+    "Other, Hazardous category B",
+    "Other, Hazardous category C",
+    "Other, Hazardous category D",
+    "Other, "+reserved,
+    "Other, "+reserved,
+    "Other, "+reserved,
+    "Other, "+reserved,
+    "Other, No additional information",
+];
+
+const fixType_enum = [
+    unexpected,
+    "GPS",
+    "GLONASS",
+    "Combined GPS/GLONASS",
+    "Loran-C",
+    "Chayka",
+    "Integrated navigation system",
+    "Surveyed",
+    "Galileo",
+];
+
+const navAid_enum = [
+    unexpected,
+    "Reference point",
+    "RACON (radar transponder marking a navigation hazard)",
+    "Fixed structure off shore, such as oil platforms, wind farms, rigs",
+    "Spare, Reserved for future use.",
+    "Light, without sectors",
+    "Light, with sectors",
+    "Leading Light Front",
+    "Leading Light Rear",
+    "Beacon, Cardinal N",
+    "Beacon, Cardinal E",
+    "Beacon, Cardinal S",
+    "Beacon, Cardinal W",
+    "Beacon, Port hand",
+    "Beacon, Starboard hand",
+    "Beacon, Preferred Channel port hand",
+    "Beacon, Preferred Channel starboard hand",
+    "Beacon, Isolated danger",
+    "Beacon, Safe water",
+    "Beacon, Special mark",
+    "Cardinal Mark N",
+    "Cardinal Mark E",
+    "Cardinal Mark S",
+    "Cardinal Mark W",
+    "Port hand Mark",
+    "Starboard hand Mark",
+    "Preferred Channel Port hand",
+    "Preferred Channel Starboard hand",
+    "Isolated danger",
+    "Safe Water",
+    "Special Mark",
+    "Light Vessel / LANBY / Rigs"
+];

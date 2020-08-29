@@ -13,8 +13,8 @@
         "name": "",
         "statusCode": "",
         "headers": {},
-        "x": 990,
-        "y": 460,
+        "x": 550,
+        "y": 680,
         "wires": []
     },
     {
@@ -22,8 +22,8 @@
         "type": "ais-decoder",
         "z": "f6755db8.da6748",
         "name": "",
-        "x": 470,
-        "y": 280,
+        "x": 330,
+        "y": 300,
         "wires": [
             [
                 "a78766c5.f4b24"
@@ -35,7 +35,7 @@
         "type": "function",
         "z": "f6755db8.da6748",
         "name": "Trim",
-        "func": "if (msg.payload.message) {\n    msg.payload = msg.payload.message.trim();\n} else msg.payload = \"\";\nreturn msg;",
+        "func": "if (msg.payload.message) {\n    msg.payload = msg.payload.message.trim();\n} else {\n    msg.payload = \"\";\n}\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "x": 290,
@@ -55,9 +55,9 @@
         "fieldType": "msg",
         "format": "handlebars",
         "syntax": "mustache",
-        "template": "<table style=\\\"width:50%\\\">\n<tr><td>Original AIS message:</td><td style=\"font-family:courier;\">{{originalAisMessage}}</td></tr>\n<tr><td>Message type:</td><td>{{payload.messageType}}</td></tr>\n<tr><td>Mobile Marine Service identifier:</td><td>{{payload.senderMmsi}}</td></tr>\n\n{{#payload.navigationStatus}}\n<tr><td>Navigation status:</td><td>{{payload.navigationStatus}}</td></tr>\n{{/payload.navigationStatus}}\n\n{{#payload.name}}\n<tr><td>Vessel name:</td><td>{{payload.name}}</td></tr>\n{{/payload.name}}\n\n{{#payload.callsign}}\n<tr><td>Callsign:</td><td>{{payload.callsign}}</td></tr>\n{{/payload.callsign}}\n\n{{#payload.latitude}}\n<tr><td>Latitude:</td><td>{{payload.latitude}}</td></tr>\n{{/payload.latitude}}\n\n{{#payload.longitude}}\n<tr><td>Longitude:</td><td>{{payload.longitude}}</td></tr>\n{{/payload.longitude}}\n\n{{#payload.speedOverGround}}\n<tr><td>Speed over ground:</td><td>{{payload.speedOverGround}}</td></tr>\n{{/payload.speedOverGround}}\n\n{{#payload.courseOverGround}}\n<tr><td>Course over ground:</td><td>{{payload.courseOverGround}}</td></tr>\n{{/payload.courseOverGround}}\n\n{{#payload.turningDirection}}\n<tr><td>Turning direction:</td><td>{{payload.turningDirection}}</td></tr>\n{{/payload.turningDirection}}\n\n{{#payload.turningRate}}\n<tr><td>Turning rate:</td><td>{{payload.turningRate}}</td></tr>\n{{/payload.turningRate}}\n\n</table>\n<br><br>\n",
+        "template": "<table style=\\\"width:50%\\\">\n    \n<tr><td>Original AIS message:</td><td style=\"font-family:courier;\">{{{originalAisMessage_text}}}</td></tr>\n\n<tr><td>Talker ID:</td><td>{{payload.talkerId}} ({{payload.talkerId_text}})</td></tr>\n\n<tr><td>Message type:</td><td>{{payload.messageType}} ({{payload.messageType_text}})\n</td></tr>\n\n<tr><td>Repeat indicator:</td><td>{{payload.repeatIndicator}}</td></tr>\n\n<tr><td>Mobile Marine Service identifier:</td><td>{{payload.senderMmsi}}</td></tr>\n\n{{#payload.messageSubtype_text}}\n<tr><td>Message {{payload.messageType}} subtype:</td><td>{{payload.messageSubtype_text}}</td></tr>\n{{/payload.messageSubtype_text}}\n\n{{#payload.name}}\n<tr><td>Vessel name:</td><td>{{payload.name}}</td></tr>\n{{/payload.name}}\n\n{{#payload.callsign}}\n<tr><td>Callsign:</td><td>{{payload.callsign}}</td></tr>\n{{/payload.callsign}}\n\n{{#payload.navigationStatus_text}}\n<tr><td>Navigation status:</td><td>{{payload.navigationStatus}} ({{payload.navigationStatus_text}})\n</td></tr>\n{{/payload.navigationStatus_text}}\n\n{{#payload.latitude}}\n<tr><td>Latitude:</td><td>{{payload.latitude}}</td></tr>\n{{/payload.latitude}}\n\n{{#payload.longitude}}\n<tr><td>Longitude:</td><td>{{payload.longitude}}</td></tr>\n{{/payload.longitude}}\n\n{{#payload.positionAccuracy_text}}\n<tr><td>Position accuracy:</td><td>{{payload.positionAccuracy}} ({{payload.positionAccuracy_text}})</td></tr>\n{{/payload.positionAccuracy_text}}\n\n{{#payload.speedOverGround}}\n<tr><td>Speed over ground:</td><td>{{payload.speedOverGround}} knots</td></tr>\n{{/payload.speedOverGround}}\n\n{{#payload.courseOverGround}}\n<tr><td>Course over ground:</td><td>{{payload.courseOverGround}}</td></tr>\n{{/payload.courseOverGround}}\n\n{{#payload.trueHeading}}\n<tr><td>True heading:</td><td>{{payload.trueHeading}}</td></tr>\n{{/payload.trueHeading}}\n\n{{#payload.turningDirection_text}}\n<tr><td>Turning status:</td><td>{{payload.turningDirection_text}}</td></tr>\n{{/payload.turningDirection_text}}\n\n{{#payload.turningRate}}\n<tr><td>Turning rate:</td><td>{{payload.turningRate}} degrees/minute</td></tr>\n{{/payload.turningRate}}\n\n{{#payload.timeStampSeconds}}\n<tr><td>Timestamp:</td><td>{{payload.timeStampSeconds}} s</td></tr>\n{{/payload.timeStampSeconds}}\n\n{{#payload.positioningSystemStatus_text}}\n<tr><td>Positioning system status:</td><td>{{payload.positioningSystemStatus}} ({{payload.positioningSystemStatus_text}})</td></tr>\n{{/payload.positioningSystemStatus_text}}\n\n{{#payload.manoeuver_text}}\n<tr><td>Special manoeuver:</td><td>{{payload.manoeuver}} ({{payload.manoeuver_text}})</td></tr>\n{{/payload.manoeuver_text}}\n\n{{#payload.shipType_text}}\n<tr><td>Ship type:</td><td>{{payload.shipType}} ({{payload.shipType_text}})</td></tr>\n{{/payload.shipType_text}}\n\n{{#payload.fixType_text}}\n<tr><td>Position fix type:</td><td>{{payload.fixType}} ({{payload.fixType_text}})</td></tr>\n{{/payload.fixType_text}}\n\n{{#payload.navAid_text}}\n<tr><td>Navaid type:</td><td>{{payload.navAid}} ({{payload.navAid_text}})</td></tr>\n{{/payload.navAid_text}}\n\n{{#payload.raim}}\n<tr><td>RAIM:</td><td>{{payload.raim}}</td></tr>\n{{/payload.raim}}\n\n{{#payload.offPosition}}\n<tr><td>Off position:</td><td>{{payload.offPosition}}</td></tr>\n{{/payload.offPosition}}\n\n{{#payload.virtualAid}}\n<tr><td>Virtual navaid:</td><td>{{payload.virtualAid}}</td></tr>\n{{/payload.virtualAid}}\n\n{{#payload.assignedMode}}\n<tr><td>Assigned mode:</td><td>{{payload.assignedMode}}</td></tr>\n{{/payload.assignedMode}}\n\n{{#payload.altitude}}\n<tr><td>Altitude:</td><td>{{payload.altitude}}</td></tr>\n{{/payload.altitude}}\n\n{{#payload.version}}\n<tr><td>Version of spec:</td><td>{{payload.version}}</td></tr>\n{{/payload.version}}\n\n{{#payload.shipId}}\n<tr><td>IMO ship ID:</td><td>{{payload.shipId}}</td></tr>\n{{/payload.shipId}}\n\n{{#payload.dimensionToBow}}\n<tr><td>Distance to bow:</td><td>{{payload.dimensionToBow}} m</td></tr>\n{{/payload.dimensionToBow}}\n\n{{#payload.dimensionToStern}}\n<tr><td>Distance to stern:</td><td>{{payload.dimensionToStern}} m</td></tr>\n{{/payload.dimensionToStern}}\n\n{{#payload.dimensionToPort}}\n<tr><td>Distance to port:</td><td>{{payload.dimensionToPort}} m</td></tr>\n{{/payload.dimensionToPort}}\n\n{{#payload.dimensionToStarboard}}\n<tr><td>Distance to starboard:</td><td>{{payload.dimensionToStarboard}} m</td></tr>\n{{/payload.dimensionToStarboard}}\n\n{{#payload.draught}}\n<tr><td>Draught:</td><td>{{payload.draught}} m</td></tr>\n{{/payload.draught}}\n\n{{#payload.destination}}\n<tr><td>Destination:</td><td>{{payload.destination}}</td></tr>\n{{/payload.destination}}\n\n{{#payload.eta}}\n<tr><td>Estimated time of arrival:</td><td>{{payload.eta}}</td></tr>\n{{/payload.eta}}\n\n{{#payload.baseTime}}\n<tr><td>UTC at base station:</td><td>{{payload.baseTime}}</td></tr>\n{{/payload.baseTime}}\n\n{{#payload.destinationMmsi}}\n<tr><td>MMSI of addressed station:</td><td>{{payload.destinationMmsi}}</td></tr>\n{{/payload.destinationMmsi}}\n\n{{#payload.sequenceNumber}}\n<tr><td>Sequence number:</td><td>{{payload.sequenceNumber}}</td></tr>\n{{/payload.sequenceNumber}}\n\n{{#payload.retransmitted}}\n<tr><td>Retransmitted:</td><td>{{payload.retransmitted}}</td></tr>\n{{/payload.retransmitted}}\n\n{{#payload.designatedAreaCode}}\n<tr><td>Designated area code:</td><td>{{payload.designatedAreaCode}}</td></tr>\n{{/payload.designatedAreaCode}}\n\n{{#payload.functionalId}}\n<tr><td>Functional ID:</td><td>{{payload.functionalId}}</td></tr>\n{{/payload.functionalId}}\n\n{{#payload.binaryData}}\n<tr><td>Binary data:</td><td>{{payload.binaryData}}</td></tr>\n{{/payload.binaryData}}\n\n{{#payload.numberOfPersons}}\n<tr><td>Number of persons on board:</td><td>{{payload.numberOfPersons}}</td></tr>\n{{/payload.numberOfPersons}}\n\n{{#payload.messageType24Part}}\n<tr><td>Message 24 subtype:</td><td>{{payload.messageType24Part}}</td></tr>\n{{/payload.messageType24Part}}\n\n{{#payload.mothershipMmsi}}\n<tr><td>Mothership MMSI:</td><td>{{payload.mothershipMmsi}}</td></tr>\n{{/payload.mothershipMmsi}}\n\n{{#payload.vendorId}}\n<tr><td>AIS equipment vendor ID:</td><td>{{payload.vendorId}}</td></tr>\n{{/payload.vendorId}}\n\n{{#payload.unitModelCode}}\n<tr><td>AIS equipment model:</td><td>{{payload.unitModelCode}}</td></tr>\n{{/payload.unitModelCode}}\n\n{{#payload.unitSerialNumber}}\n<tr><td>AIS equipment serial number:</td><td>{{payload.unitSerialNumber}}</td></tr>\n{{/payload.unitSerialNumber}}\n\n</table>\n<br><br>\n",
         "output": "str",
-        "x": 470,
+        "x": 570,
         "y": 420,
         "wires": [
             [
@@ -86,7 +86,7 @@
         "syntax": "mustache",
         "template": "<table style=\\\"width:30%; border: 1px solid red;\\\">\n<tr><td style=\"border: 1px solid red;\">Original AIS message:</td><td style=\"font-family:courier; border: 1px solid red;\">{{originalAisMessage}}</td></tr>\n<tr><td style=\"border: 1px solid red;\">Decode error:</td><td style=\"border: 1px solid red;\">{{errorInfo}}</td></tr>\n</table>\n<br><br>\n",
         "output": "str",
-        "x": 470,
+        "x": 570,
         "y": 500,
         "wires": [
             [
@@ -160,11 +160,11 @@
         "checkall": "true",
         "repair": false,
         "outputs": 4,
-        "x": 270,
+        "x": 170,
         "y": 460,
         "wires": [
             [
-                "969b4057.05a828"
+                "fe9d120e.be0fb"
             ],
             [
                 "b390488e.581d"
@@ -193,7 +193,7 @@
         "timeout": "",
         "count": "",
         "reduceRight": false,
-        "x": 670,
+        "x": 770,
         "y": 460,
         "wires": [
             [
@@ -210,13 +210,29 @@
         "fieldType": "msg",
         "format": "handlebars",
         "syntax": "mustache",
-        "template": "<!DOCTYPE html>\n<html>\n<head>\n<style>\ntable, th, td {\n  border: 1px solid black;\n  border-collapse: collapse;\n  padding: 15px;\n  text-align: left;\n}\n</style>\n</head>\n\n<body>\n<h1>Simple online AIS decoder</h1>\n<p>Enter one or more AIS messages, then click \"Decode\".<br>\nExample message: !AIVDM,1,1,,B,33P7k`@Oi?wVpv0PB7@=`bw`00pA,0*7B</p>\n<p>Only a subset of the available decoded data is diaplayed.\nModify the <i>Results table</i> template to change the displayed information.</p>\n\n<form action=\"/aisdecode\">\n<textarea name=\"message\" rows=\"10\" cols=\"100\"></textarea><br>\n<input type=\"submit\" value=\"Decode\">\n</form>\n<br><br>\n{{{payload}}}\n\n</body>\n</html>\n",
+        "template": "<!DOCTYPE html>\n<html>\n<head>\n<style>\ntable, th, td {\n  border: 1px solid black;\n  border-collapse: collapse;\n  padding: 15px;\n  text-align: left;\n}\n</style>\n</head>\n\n<body>\n<h1>Online AIS decoder</h1>\n<p>Enter one or more AIS messages, then click \"Decode\".<br>\nExample message: !AIVDM,1,1,,B,33P7k`@Oi?wVpv0PB7@=`bw`00pA,0*7B</p>\n\n<form action=\"/aisdecode\">\n<textarea name=\"message\" rows=\"10\" cols=\"100\"></textarea><br>\n<input type=\"submit\" value=\"Decode\">\n</form>\n<br><br>\n{{{payload}}}\n\n</body>\n</html>\n",
         "output": "str",
-        "x": 830,
-        "y": 460,
+        "x": 390,
+        "y": 680,
         "wires": [
             [
                 "24738581.8f23f2"
+            ]
+        ]
+    },
+    {
+        "id": "fe9d120e.be0fb",
+        "type": "function",
+        "z": "f6755db8.da6748",
+        "name": "Pre-process results",
+        "func": "// Split original AIS message into separate lines using <br>\nvar i;\nmsg.originalAisMessage_text = \"\";\nfor (i=0;i<msg.originalAisMessage.length;i++) {\n    if (i>0) msg.originalAisMessage_text += \"<br>\";\n    msg.originalAisMessage_text += escapeHtml(msg.originalAisMessage[i]);\n}\n\n// Now to get round the limitations of mustache...\n// Ensure uninterpreted numbers which might be 0 are textified for display\nif (!isNaN(msg.payload.turningRate)) msg.payload.turningRate = String(msg.payload.turningRate);\nif (!isNaN(msg.payload.speedOverGround)) msg.payload.speedOverGround = String(msg.payload.speedOverGround);\nif (!isNaN(msg.payload.courseOverGround)) msg.payload.courseOverGround = String(msg.payload.courseOverGround);\nif (!isNaN(msg.payload.trueHeading)) msg.payload.trueHeading = String(msg.payload.trueHeading);\nif (!isNaN(msg.payload.latitude)) msg.payload.latitude = String(msg.payload.latitude);\nif (!isNaN(msg.payload.longitude)) msg.payload.longitude = String(msg.payload.longitude);\nif (!isNaN(msg.payload.altitude)) msg.payload.altitude = String(msg.payload.altitude);\nif (!isNaN(msg.payload.sequenceNumber)) msg.payload.sequenceNumber = String(msg.payload.sequenceNumber);\nif (!isNaN(msg.payload.timeStampSeconds)) msg.payload.timeStampSeconds = String(msg.payload.timeStampSeconds);\nif (!isNaN(msg.payload.version)) msg.payload.version = String(msg.payload.version);\nif (!isNaN(msg.payload.shipId)) msg.payload.shipId = String(msg.payload.shipId);\nif (!isNaN(msg.payload.dimensionToBow)) msg.payload.dimensionToBow = String(msg.payload.dimensionToBow);\nif (!isNaN(msg.payload.dimensionToStern)) msg.payload.dimensionToStern = String(msg.payload.dimensionToStern);\nif (!isNaN(msg.payload.dimensionToPort)) msg.payload.dimensionToPort = String(msg.payload.dimensionToPort);\nif (!isNaN(msg.payload.dimensionToStarboard)) msg.payload.dimensionToStarboard = String(msg.payload.dimensionToStarboard);\nif (!isNaN(msg.payload.draught)) msg.payload.draught = String(msg.payload.draught);\nif (!isNaN(msg.payload.designatedAreaCode)) msg.payload.designatedAreaCode = String(msg.payload.designatedAreaCode);\nif (!isNaN(msg.payload.functionalId)) msg.payload.functionalId = String(msg.payload.functionalId);\nif (!isNaN(msg.payload.numberOfPersons)) msg.payload.numberOfPersons = String(msg.payload.numberOfPersons);\n\n// Ensure boolean flags are textified for display\nif (msg.payload.raim!==undefined) msg.payload.raim = String(msg.payload.raim);\nif (msg.payload.retransmitted!==undefined) msg.payload.retransmitted = String(msg.payload.retransmitted);\nif (msg.payload.offPosition!==undefined) msg.payload.offPosition = String(msg.payload.offPosition);\nif (msg.payload.virtualAid!==undefined) msg.payload.virtualAid = String(msg.payload.virtualAid);\nif (msg.payload.assignedMode!==undefined) msg.payload.assignedMode = String(msg.payload.assignedMode);\n\n// Escape risky strings\nif (msg.payload.name) msg.payload.name = escapeHtml(msg.payload.name);\nif (msg.payload.destination) msg.payload.destination = escapeHtml(msg.payload.destination);\n\n// Ready for the mustache template\nreturn msg;\n\nfunction escapeHtml(s) {\n    var p = s.replace(/&/,\"&amp;\");\n    var r = p.replace(/</g,\"&lt;\");\n    return r.replace(/>/g,\"&gt;\");\n}\n",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 390,
+        "y": 420,
+        "wires": [
+            [
+                "969b4057.05a828"
             ]
         ]
     }
