@@ -3,22 +3,22 @@
   "version": "0.4.0",
   "description": "Decodes AIS messages from an AIS receiver such as rtl-ais.",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 0"
   },
   "keywords": [
     "AIS",
     "node-red"
   ],
-  "main" : "ais-decoder/ais-decoder.js",
-  "author" : "Chris Adie",
-  "license" : "Apache-2.0",
-  "repository" : {
-    "type" : "git",
-    "url" : "https://github.com/chrisadie/node-red-contrib-ais-decoder.git"
+  "main": "ais-decoder/ais-decoder.js",
+  "author": "Chris Adie",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisadie/node-red-contrib-ais-decoder.git"
   },
-  "node-red" : {
+  "node-red": {
     "nodes": {
       "ais-decoder": "ais-decoder/ais-decoder.js"
     }
-  }  
+  }
 }
