@@ -23,7 +23,7 @@ The input is a stream of AIS messages. There must be no more than one AIS messag
 Some AIS messages have multiple parts. Each part should be in its own node-red message, and the parts should be presented in sequence. The AIS decoder will accumulate the parts until all parts have been received before outputting the decoded information.
 
 ### Output
-The output message contains the decoded data or error information. See the node description in the Node-Red editor and the file [output-spec.pdf](output-spec.pdf) for more information.
+The output message contains the decoded data or error information. See the node description in the Node-Red editor and the  [Github wiki](https://github.com/chrisadie/node-red-contrib-ais-decoder/wiki) for more information.
 
 ## Example Flows
 To load an example flow, go to the node-red menu at the top right of the screen and select Import. Click on Examples, then choose the relevant example from the node-red-contrib-ais-decoder folder.

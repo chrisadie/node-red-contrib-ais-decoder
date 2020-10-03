@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Chris Adie
+ * Copyright (C) 2020 Chris Adie
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -508,6 +508,23 @@ function extractLatLong(aisData,binPayload,start) {
 }
                             
 //
+// Extract dimensions from payload
+//
+function extractDimensions(aisData,binPayload,start) {
+    var d = extractInt(binPayload,start,9);
+    if (d!=0) aisData.dimensionToBow = d;
+    start += 9;
+    d = extractInt(binPayload,start,9);
+    if (d!=0) aisData.dimensionToStern = d;
+    start += 9;
+    d = extractInt(binPayload,start,6);
+    if (d!=0) aisData.dimensionToPort = d;
+    start += 6;
+    d = extractInt(binPayload,start,6);
+    if (d!=0) aisData.dimensionToStarboard = d;
+}
+                                                        
+//
 // Decode position report type A (message types 1 2 3). Update the ais data object, and return
 // empty string, or error string.
 //
@@ -516,7 +533,10 @@ function extractPositionReportA(aisData,binPayload,nBits) {
     if (lenerr) {
         return lenerr;
     }
-    aisData.navigationStatus = extractInt(binPayload,38,4);
+    var n = extractInt(binPayload,38,4);
+    if (n!=15) {
+        aisData.navigationStatus = n;
+    }
     var rot = extractInt(binPayload,42,8);
     if (rot!=128) {
         // Rate of turn information is available
@@ -527,7 +547,7 @@ function extractPositionReportA(aisData,binPayload,nBits) {
         // Speed information is available
         aisData.speedOverGround = speed/10.0;
     }
-    aisData.positionAccuracy = extractInt(binPayload,60,1);
+    aisData.positionAccurate = Boolean(extractInt(binPayload,60,1));
     extractLatLong(aisData,binPayload,61);
     var cog = extractInt(binPayload,116,12);
     if (cog!=3600) {
@@ -554,6 +574,9 @@ function extractPositionReportA(aisData,binPayload,nBits) {
         aisData.manoeuvre = man;
     }
     aisData.raim = Boolean(extractInt(binPayload,148,1));
+    if (nBits>149) {
+        aisData.radioStatus = extractBinary(binPayload,149,nBits-149);
+    }
     return "";
 }
 
@@ -570,7 +593,7 @@ function extractPositionReportB(aisData,binPayload,nBits) {
         // Speed information is available
         aisData.speedOverGround = speed/10.0;
     }
-    aisData.positionAccuracy = extractInt(binPayload,56,1);
+    aisData.positionAccurate = Boolean(extractInt(binPayload,56,1));
     extractLatLong(aisData,binPayload,57);
     var cog = extractInt(binPayload,112,12);
     if (cog!=3600) {
@@ -593,21 +616,24 @@ function extractPositionReportB(aisData,binPayload,nBits) {
     }
     if (aisData.messageType==19) {
         // Extended message
-        lenerr = checkPayloadLength(aisData,nBits,306);
+        lenerr = checkPayloadLength(aisData,nBits,307);
         if (lenerr) {
             return lenerr;
         }
         aisData.name = extractString(binPayload,143,120).trim();
         aisData.name = normaliseString(aisData.name);
         aisData.shipType = extractInt(binPayload,263,8);
-        aisData.dimensionToBow = extractInt(binPayload,271,9);
-        aisData.dimensionToStern = extractInt(binPayload,280,9);
-        aisData.dimensionToPort = extractInt(binPayload,289,6);
-        aisData.dimensionToStarboard = extractInt(binPayload,295,6);
-        aisData.fixType = extractInt(binPayload,301,4);
+        extractDimensions(aisData,binPayload,271);
+        aisData.fixType = extractFixType(binPayload,301);
         aisData.raim = Boolean(extractInt(binPayload,305,1));
+        aisData.dte = Boolean(extractInt(binPayload,306,1));
+        aisData.assignedMode = Boolean(extractInt(binPayload,307,1));
     } else {
+        aisData.assignedMode = Boolean(extractInt(binPayload,146,1));
         aisData.raim = Boolean(extractInt(binPayload,147,1));
+        if (nBits>148) {
+            aisData.radioStatus = extractBinary(binPayload,148,nBits-148);
+        }
     }
     return "";
 }
@@ -642,10 +668,19 @@ function decodeRateOfTurn(aisData,rot) {
 }
 
 //
+// Decode fix type, returning undefined if result is 15
+//
+function extractFixType(binPayload,start) {
+    var ft = extractInt(binPayload,start,4);
+    if (ft==15) return undefined;
+    return ft;
+}
+
+//
 // Decode static and voyage-related data (message type 5).
 //
 function extractStaticReport(aisData,binPayload,nBits) {
-    var lenerr = checkPayloadLength(aisData,nBits,420);
+    var lenerr = checkPayloadLength(aisData,nBits,422);
     if (lenerr) {
         return lenerr;
     }
@@ -656,11 +691,8 @@ function extractStaticReport(aisData,binPayload,nBits) {
     aisData.name = extractString(binPayload,112,120).trim();
     aisData.name = normaliseString(aisData.name);
     aisData.shipType = extractInt(binPayload,232,8);
-    aisData.dimensionToBow = extractInt(binPayload,240,9);
-    aisData.dimensionToStern = extractInt(binPayload,249,9);
-    aisData.dimensionToPort = extractInt(binPayload,249,6);
-    aisData.dimensionToStarboard = extractInt(binPayload,264,6);
-    aisData.fixType = extractInt(binPayload,270,4);
+    extractDimensions(aisData,binPayload,240);
+    aisData.fixType = extractFixType(binPayload,270);
     // Create a Date with the ETA
     var mo = extractInt(binPayload,274,4);
     var da = extractInt(binPayload,278,5);
@@ -686,22 +718,26 @@ function extractStaticReport(aisData,binPayload,nBits) {
     }
     aisData.destination = extractString(binPayload,302,d).trim();
     aisData.destination = normaliseString(aisData.destination);
+    aisData.dte = Boolean(extractInt(binPayload,422,1));
     return "";
 }
 
 //
-// Replace one or more @ with spaces, then trim trailing space
+// Replace one or more @ with spaces, then trim trailing space.
+// Return undefined if empty.
 //
 function normaliseString(str) {
-    var noAt = str.replace(/@/g," ");
-    return noAt.trim();
+    var result = str.replace(/@/g," ");
+    result = result.trim();
+    if (result=="") return undefined;
+    return result;
 }
 
 //
 // Decode SAR aircraft position report (message type 9).
 //
 function extractSarReport(aisData,binPayload,nBits) {
-    var lenerr = checkPayloadLength(aisData,nBits,147);
+    var lenerr = checkPayloadLength(aisData,nBits,148);
     if (lenerr) {
         return lenerr;
     }
@@ -714,7 +750,7 @@ function extractSarReport(aisData,binPayload,nBits) {
         // Speed information is available
         aisData.speedOverGround = speed*1.0;
     }
-    aisData.positionAccuracy = extractInt(binPayload,60,1);
+    aisData.positionAccurate = Boolean(extractInt(binPayload,60,1));
     extractLatLong(aisData,binPayload,61);
     var cog = extractInt(binPayload,116,12);
     if (cog!=3600) {
@@ -730,7 +766,12 @@ function extractSarReport(aisData,binPayload,nBits) {
         // Positioning system info available
         aisData.positioningSystemStatus = tStamp-60;
     }
-    aisData.raim = Boolean(extractInt(binPayload,148,1));
+    aisData.dte = Boolean(extractInt(binPayload,142,1));
+    aisData.assignedMode = Boolean(extractInt(binPayload,146,1));
+    aisData.raim = Boolean(extractInt(binPayload,147,1));
+    if (nBits>148) {
+        aisData.radioStatus = extractBinary(binPayload,148,nBits-148);
+    }
     return "";
 }
 
@@ -749,10 +790,13 @@ function extractBaseStationReport(aisData,binPayload,nBits) {
     var mi = extractInt(binPayload,66,6);
     var s = extractInt(binPayload,72,6);
     aisData.baseTime = new Date(y,mo-1,d,h,mi,s,0);
-    aisData.positionAccuracy = extractInt(binPayload,78,1);
+    aisData.positionAccurate = Boolean(extractInt(binPayload,78,1));
     extractLatLong(aisData,binPayload,79);
-    aisData.fixType = extractInt(binPayload,134,4);
+    aisData.fixType = extractFixType(binPayload,134);
     aisData.raim = Boolean(extractInt(binPayload,148,1));
+    if (nBits>149) {
+        aisData.radioStatus = extractBinary(binPayload,149,nBits-149);
+    }
     return "";
 }
 
@@ -770,11 +814,9 @@ function extractBinaryAddressedMessage(aisData,binPayload,nBits) {
     aisData.retransmitted = Boolean(extractInt(binPayload,70,1));
     aisData.designatedAreaCode = extractInt(binPayload,72,10);
     aisData.functionalId = extractInt(binPayload,82,6);
-    var binLength = nBits - 88;
-    if (binLength>920) binLength = 920;
-    if (binLength>0) {
-        aisData.binaryData = extractBinary(binPayload,88,binLength);
-        lenerr = interpretBinaryData(aisData,binPayload,88,binLength);  // Experimental
+    if (nBits>88) {
+        if (nBits>88+920) nBits = 88+920;
+        lenerr = interpretBinaryData(aisData,binPayload,88,nBits);
     }
     return lenerr;
 }
@@ -789,11 +831,9 @@ function extractBinaryBroadcastMessage(aisData,binPayload,nBits) {
     }
     aisData.designatedAreaCode = extractInt(binPayload,40,10);
     aisData.functionalId = extractInt(binPayload,50,6);
-    var binLength = nBits - 56;
-    if (binLength>952) binLength = 952;
-    if (binLength>0) {
-        aisData.binaryData = extractBinary(binPayload,56,binLength);
-        lenerr = interpretBinaryData(aisData,binPayload,56,binLength);  // Experimental
+    if (nBits>56) {
+        if (nBits>56+952) nBits = 56+952;
+        lenerr = interpretBinaryData(aisData,binPayload,56,nBits);
     }
     return "";
 }
@@ -819,7 +859,7 @@ function extractDgnssBroadcastBinaryMessage(aisData,binPayload,nBits) {
     var binLength = nBits - 80;
     if (binLength>736) binLength = 736;
     if (binLength>0) {
-        aisData.binaryData = extractBinary(binPayload,80,binLength);
+        aisData.dgnssCorrection = extractBinary(binPayload,80,binLength);
     }
     return "";
 }
@@ -842,14 +882,11 @@ function extractAidToNavigationReport(aisData,binPayload,nBits) {
             }
         }
     }
-    aisData.name = normaliseString(n.trim());
-    aisData.positionAccuracy = extractInt(binPayload,163,1);
+    aisData.name = normaliseString(n);
+    aisData.positionAccurate = Boolean(extractInt(binPayload,163,1));
     extractLatLong(aisData,binPayload,164);
-    aisData.dimensionToBow = extractInt(binPayload,219,9);
-    aisData.dimensionToStern = extractInt(binPayload,228,9);
-    aisData.dimensionToPort = extractInt(binPayload,237,6);
-    aisData.dimensionToStarboard = extractInt(binPayload,243,6);
-    aisData.fixType = extractInt(binPayload,249,4);
+    extractDimensions(aisData,binPayload,219);
+    aisData.fixType = extractFixType(binPayload,249);
     var tStamp = extractInt(binPayload,253,6);
     if (tStamp<60) {
         // Timestamp available
@@ -890,7 +927,8 @@ function extractStaticReport24(aisData,binPayload,nBits) {
     var part = extractInt(binPayload,38,2);
     switch (part) {
         case 0:
-            aisData.messageType24Part = "A";
+            aisData.messageSubtype = "A";
+            aisData.messageSubtype_text = "Part A";
             lenerr = checkPayloadLength(aisData,nBits,160);
             if (lenerr) {
                 return lenerr;
@@ -899,7 +937,8 @@ function extractStaticReport24(aisData,binPayload,nBits) {
             aisData.name = normaliseString(aisData.name);
             return "";
         case 1:
-            aisData.messageType24Part = "B";
+            aisData.messageSubtype = "B";
+            aisData.messageSubtype_text = "Part B";
             lenerr = checkPayloadLength(aisData,nBits,168);
             if (lenerr) {
                 return lenerr;
@@ -911,12 +950,12 @@ function extractStaticReport24(aisData,binPayload,nBits) {
             aisData.unitSerialNumber = extractInt(binPayload,70,20);
             aisData.callsign = extractString(binPayload,90,42).trim();
             aisData.callsign = normaliseString(aisData.callsign);
-            aisData.dimensionToBow = extractInt(binPayload,132,9);
-            aisData.dimensionToStern = extractInt(binPayload,141,9);
-            aisData.dimensionToPort = extractInt(binPayload,150,6);
-            aisData.dimensionToStarboard = extractInt(binPayload,156,6);
-            var mmsi = extractInt(binPayload,132,30);
-            aisData.mothershipMmsi = padLeft(mmsi.toString(),"0",9);
+            if (aisData.senderMmsi.indexOf("98")!=0) {
+                extractDimensions(aisData,binPayload,132);
+            } else {
+                var mmsi = extractInt(binPayload,132,30);
+                aisData.mothershipMmsi = padLeft(mmsi.toString(),"0",9);
+            }
             return "";
         default:
             return "Invalid part indicator in type 24 message";
@@ -955,8 +994,8 @@ function extractSingleSlotBinaryMessage(aisData,binPayload,nBits) {
     if (lenerr) {
         return lenerr;
     }
-    var addressed = extractInt(binPayload,38,1);
-    var structured = extractInt(binPayload,39,1);
+    var addressed = Boolean(extractInt(binPayload,38,1));
+    var structured = Boolean(extractInt(binPayload,39,1));
     var start = 40;
     if (addressed) {
         lenerr = checkPayloadLength(aisData,nBits,start+30);
@@ -977,11 +1016,11 @@ function extractSingleSlotBinaryMessage(aisData,binPayload,nBits) {
         aisData.functionalId = extractInt(binPayload,start,6);
         start += 6;
     }
-    var binLength = nBits - start;
-    if (binLength) {
-        aisData.binaryData = extractBinary(binPayload,start,binLength);
+    if (nBits>start) {
         if (structured) {
-            lenerr = interpretBinaryData(aisData,binPayload,start,binLength);  // Experimental
+            lenerr = interpretBinaryData(aisData,binPayload,start,nBits);
+        } else {
+            aisData.binaryData = extractBinary(binPayload,start,nBits-start);
         }
     }
     return lenerr;
@@ -999,7 +1038,6 @@ function checkPayloadLength(aisData,nBits,minimum) {
 
 //
 // Certain messages contain embedded binary data which is interpreted according to the DAC and FID.
-// The following code is experimental.
 //
                                               
 const dispatch = [
@@ -1011,28 +1049,30 @@ const dispatch = [
     {"mty":25,  "dac": 1,  "fid":  0,  "func": interpret_25_1_0, "text": "Text using 6-bit ASCII"},
     // ToDo: extend the decoding capabilities for messages 6 8 and 25. See https://www.iala-aism.org/asm/
 ];
-                                              
-function interpretBinaryData(aisData,binPayload,start,binLength) {
+                                
+function interpretBinaryData(aisData,binPayload,start,nBits) {
     var i;
     for (i=0;i<dispatch.length;i++) {
         if (dispatch[i].mty==aisData.messageType &&
             dispatch[i].dac==aisData.designatedAreaCode &&
             dispatch[i].fid==aisData.functionalId) {
-                aisData.messageSubtype_text = dispatch[i].text;
+            aisData.messageSubtype = dispatch[i].dac+","+dispatch[i].fid;
+            aisData.messageSubtype_text = aisData.messageSubtype+": "+dispatch[i].text;
             if (dispatch[i].func===undefined) {
-                return "";
+                break;
             } else {
-                return dispatch[i].func(aisData,binPayload,start,binLength);
+                return dispatch[i].func(aisData,binPayload,start,nBits-start);
             }
         }
     }
+    aisData.binaryData = extractBinary(binPayload,start,nBits-start);
     return "";
 }
 
 function interpret_6_1_40(aisData,binPayload,start,binLength) {
     var lenerr = "";
     if (binLength<16) {
-        lenerr = "Cannot fully decode message type 6 (1,40): insufficient data in payload.";
+        lenerr = "Cannot fully decode message type "+aisData.messageType+" ("+aisData.messageSubtype+"): insufficient data in payload.";
     } else {
         var n = extractInt(binPayload,start,13);
         if (n) aisData.numberOfPersons = n;
@@ -1043,13 +1083,13 @@ function interpret_6_1_40(aisData,binPayload,start,binLength) {
 function interpret_25_1_0(aisData,binPayload,start,binLength) {
     var lenerr = "";
     if (binLength<11) {
-        lenerr = "Cannot fully decode message type 25 (1,0): insufficient data in payload.";
+        lenerr = "Cannot fully decode message type "+aisData.messageType+" ("+aisData.messageSubtype+"): insufficient data in payload.";
     } else {
         var n = extractInt(binPayload,start,11);
-        if (n) aisData.message25TextSequenceNumber = n;
+        if (n) aisData.textMessageSequenceNumber = n;
         if (binlength>=17) {
             var s = extractString(binPayload,start+11,binLength-11).trim();
-            aisData.message25Text = normaliseString(s);
+            aisData.textMessage = normaliseString(s);
         }
     }
     return lenerr;
@@ -1068,7 +1108,6 @@ function addTextFields(msg) {
     msg.payload.messageType_text = textMember(msg,"messageType");
     msg.payload.navigationStatus_text = textMember(msg,"navigationStatus");
     msg.payload.turningDirection_text = textMember(msg,"turningDirection",1);
-    msg.payload.positionAccuracy_text = textMember(msg,"positionAccuracy");
     msg.payload.positioningSystemStatus_text = textMember(msg,"positioningSystemStatus");
     msg.payload.manoeuvre_text = textMember(msg,"manoeuvre");
     msg.payload.shipType_text = textMember(msg,"shipType");
@@ -1166,11 +1205,6 @@ const turningDirection_enum = [
     "Turning right" //  1
 ];
 
-const positionAccuracy_enum = [
-    "Unaugmented GNSS fix with uncertainty more than 10m",
-    "DGPS-quality fix with an accuracy of better than 10m"
-];
-                                           
 const positioningSystemStatus_enum = [
     unexpected,
     "Manual input mode",
