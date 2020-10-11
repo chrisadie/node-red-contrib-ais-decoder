@@ -60,6 +60,7 @@ function processMessage(node,msg) {
                 msg.originalAisMessage = result.aisOriginal;
                 result.aisOriginal = undefined;
                 msg.payload.talkerId = msg.originalAisMessage[0].slice(1,3);
+                msg.payload.sentenceId = msg.originalAisMessage[0].slice(3,6);
                 msg.resultCode = 0;
                 addTextFields(msg);
             }
@@ -424,7 +425,7 @@ function extractInt(nobbles,start,nBits,signed=false) {
 	var result = 0;
 	var offset, theBit, bitOffset, i, nobble;
 	// Proceed bit by bit
-	for(i=0;i<nBits;i++) {
+	for (i=0;i<nBits;i++) {
 		// Compute offset into nobbles; retrieve nobble
 		offset = Math.floor((start+i)/6);
 		nobble = nobbles[offset];
@@ -492,19 +493,51 @@ function extractBinary(binPayload,start,nBits) {
 }
 
 //
+// Extract longitude from payload
+//
+function extractLong(binPayload,start,n) {
+    var long = extractInt(binPayload,start,n,true);
+    if (n==28) {
+        if (long==0x6791AC0) {
+            return undefined;
+        }
+        return long/600000.0;
+    }
+    if (n==18) {
+        if (long==0x01a838) {
+            return undefined;
+        }
+        return long/600.0;
+    }
+    return undefined;
+}
+                            
+//
+// Extract latitude from payload
+//
+function extractLat(binPayload,start,n) {
+    var lat = extractInt(binPayload,start,n,true);
+    if (n==27) {
+        if (lat==0x3412140) {
+            return undefined;
+        }
+        return lat/600000.0;
+    }
+    if (n==17) {
+        if (lat== 0x00d548) {
+            return undefined;
+        }
+        return lat/600.0;
+    }
+    return undefined;
+}
+                                                        
+//
 // Extract lat and long from payload
 //
 function extractLatLong(aisData,binPayload,start) {
-    var long = extractInt(binPayload,start,28,true);
-    if (long!=0x6791AC0) {
-        // Longitude information available
-        aisData.longitude = long/600000.0;
-    }
-    var lat = extractInt(binPayload,start+28,27,true);
-    if (lat!=0x3412140) {
-        // Latitude information available
-        aisData.latitude = lat/600000.0;
-    }
+    aisData.longitude = extractLong(binPayload,start,28);
+    aisData.latitude = extractLat(binPayload,start+28,27);
 }
                             
 //
@@ -966,7 +999,20 @@ function extractStaticReport24(aisData,binPayload,nBits) {
 // Decode type 20 message.
 //
 function extractDataLinkManagement(aisData,binPayload,nBits) {
-    // ToDo: decode data link management information
+    aisData.offset = [];
+    aisData.number = [];
+    aisData.timeout = [];
+    aisData.increment = [];
+    var start = 40;
+    var i = 0;
+    while (start<nBits && i<4) {
+        aisData.offset[i] = extractInt(binPayload,start,12);
+        aisData.number[i] = extractInt(binPayload,start+12,4);
+        aisData.timeout[i] = extractInt(binPayload,start+16,3);
+        aisData.increment[i] = extractInt(binPayload,start+19,11);
+        start += 30;
+        i++;
+    }
     return "";
 }
 
@@ -974,7 +1020,29 @@ function extractDataLinkManagement(aisData,binPayload,nBits) {
 // Decode type 22 message.
 //
 function extractChannelManagement(aisData,binPayload,nBits) {
-    // ToDo: decode channel management information
+    var lenerr = checkPayloadLength(aisData,nBits,145);
+    if (lenerr) {
+        return lenerr;
+    }
+    aisData.channelA = extractInt(binPayload,40,12);
+    aisData.channelB = extractInt(binPayload,52,12);
+    aisData.txrxMode = extractInt(binPayload,64,4);
+    aisData.highPower = Boolean(extractInt(binPayload,68,1));
+    var addressed = extractInt(binPayload,139,1);
+    if (addressed) {
+        var m = extractInt(binPayload,69,30);
+        aisData.mmsi[0] = padLeft(m.toString(),"0",9);
+        m = extractInt(binPayload,104,30);
+        aisData.mmsi[1] = padLeft(m.toString(),"0",9);
+    } else {
+        aisData.coverageEasternLimit = extractLong(binPayload,69,18,true);
+        aisData.coverageNorthernLimit = extractLat(binPayload,87,17,true);
+        aisData.coverageWesternLimit = extractLong(binPayload,104,18,true);
+        aisData.coverageSouthernLimit = extractLat(binPayload,122,17,true);
+    }
+    aisData.channelAbw = Boolean(extractInt(binPayload,140,1));
+    aisData.channelBbw = Boolean(extractInt(binPayload,141,1));
+    aisData.zoneSize = extractInt(binPayload,142,3);
     return "";
 }
 
@@ -982,7 +1050,19 @@ function extractChannelManagement(aisData,binPayload,nBits) {
 // Decode type 16 message.
 //
 function extractAssignmentModeCommand(aisData,binPayload,nBits) {
-    // ToDo: decode assignment mode command
+    aisData.mmsi = [];
+    aisData.offset = [];
+    aisData.increment = [];
+    var start = 40;
+    var i = 0;
+    while (start<nBits && i<2) {
+        var m = extractInt(binPayload,start,30);
+        aisData.mmsi[i] = padLeft(m.toString(),"0",9);
+        aisData.offset[i] = extractInt(binPayload,start+30,12);
+        aisData.increment[i] = extractInt(binPayload,start+42,10);
+        start += 52;
+        i++;
+    }
     return "";
 }
 
@@ -1087,7 +1167,7 @@ function interpret_25_1_0(aisData,binPayload,start,binLength) {
     } else {
         var n = extractInt(binPayload,start,11);
         if (n) aisData.textMessageSequenceNumber = n;
-        if (binlength>=17) {
+        if (binLength>=17) {
             var s = extractString(binPayload,start+11,binLength-11).trim();
             aisData.textMessage = normaliseString(s);
         }
@@ -1099,9 +1179,18 @@ function interpret_25_1_0(aisData,binPayload,start,binLength) {
 // Add *_text fields to the message payload
 //
 function addTextFields(msg) {
-    for (var i=0;i<talkerId_enum.length;i++) {
+    var i;
+    msg.payload.talkerId_text = msg.payload.talkerId;
+    for (i=0;i<talkerId_enum.length;i++) {
         if (talkerId_enum[i].id==msg.payload.talkerId) {
             msg.payload.talkerId_text = talkerId_enum[i].desc;
+            break;
+        }
+    }
+    msg.payload.sentenceId_text = msg.payload.sentenceId;
+    for (i=0;i<sentenceId_enum.length;i++) {
+        if (sentenceId_enum[i].id==msg.payload.sentenceId) {
+            msg.payload.sentenceId_text = sentenceId_enum[i].desc;
             break;
         }
     }
@@ -1113,6 +1202,7 @@ function addTextFields(msg) {
     msg.payload.shipType_text = textMember(msg,"shipType");
     msg.payload.fixType_text = textMember(msg,"fixType");
     msg.payload.navAid_text = textMember(msg,"navAid");
+    msg.payload.txrxMode_text = textMember(msg,"txrxMode");
 }
 
 //
@@ -1149,6 +1239,11 @@ const talkerId_enum = [
     {id: "SA", desc: "NMEA 4.0 physical shore AIS station"}
 ];
                                            
+const sentenceId_enum = [
+    {id: "VDM", desc: "AIS VHF data-link message"},
+    {id: "VDO", desc: "AIS VHF data-link own-vessel report"}
+];
+
 const messageType_enum = [
     unexpected, //0
     "Position Report Class A", //1
@@ -1366,4 +1461,11 @@ const navAid_enum = [
     "Safe Water",
     "Special Mark",
     "Light Vessel / LANBY / Rigs"
+];
+
+const txrxMode_enum = [
+    "TxA/TxB, RxA/RxB",
+    "TxA, RxA/RxB",
+    "TxB, RxA/RxB",
+    reserved
 ];
