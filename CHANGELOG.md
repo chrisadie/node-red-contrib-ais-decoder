@@ -1,4 +1,10 @@
 # CHANGELOG.md
+## 1.1.0
+- New ubiquitous output property `msg.payload.channel` is the radio channel on which the message was sent (issue 21).
+- Message type 15 now decoded.
+- The following message 6 subtypes are now decoded: (0,0) (0,2) (0,3) (0,4)
+- The following message 8 subtypes are now decoded: (1,11) (1,16) (200,10)
+
 ## 1.0.0
 - Message types 16 20 and 22 now decoded (issue 5).
 - Error decoding message type 25 (1,0) fixed (issue 17).

@@ -79,7 +79,7 @@ function processMessage(node,msg) {
 //
 function processFragment(node,f) {
     var err = {};
-    var frags,i,orig;
+    var frags,orig;
     var result = {};
     var frag = parseFragment(f,err);
     if (frag===null) {
@@ -314,7 +314,7 @@ function computeChecksum(fragment) {
 //
 function decodeAisSentence(frags,err) {
 	var data = [];
-	var aisData = {};
+	var aisData = {"channel": frags[0].fRadioChannel};
 	var i,b,mmsi;
 	// Concatenate the data from the fragments
 	for (i=0;i<frags.length;i++) {
@@ -367,6 +367,9 @@ function decodeAisSentence(frags,err) {
             break;
         case 10:
             err.reason = extractUtcEnquiry(aisData,binPayload,nBits);
+            break;
+        case 15:
+            err.reason = extractInterrogation(aisData,binPayload,nBits);
             break;
         case 16:
             err.reason = extractAssignmentModeCommand(aisData,binPayload,nBits);
@@ -453,7 +456,7 @@ const sixBit = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&\'()*+,-./0123456789:;<
 
 function extractString(binPayload,start,nBits) {
     var str = "", strchr;
-    var offset, theBit, bitOffset, i, nobble, chr;
+    var offset, theBit, bitOffset, i, nobble;
     // Proceed bit by bit
     for (i=0;i<nBits;i++) {
         // Compute offset into nobbles; retrieve nobble
@@ -503,6 +506,12 @@ function extractLong(binPayload,start,n) {
         }
         return long/600000.0;
     }
+    if (n==25) {
+        if (long==0xFFFFFF) {
+            return undefined;
+        }
+        return long/60000.0;
+    }
     if (n==18) {
         if (long==0x01a838) {
             return undefined;
@@ -522,6 +531,12 @@ function extractLat(binPayload,start,n) {
             return undefined;
         }
         return lat/600000.0;
+    }
+    if (n==24) {
+        if (lat== 0x7FFFFF) {
+            return undefined;
+        }
+        return lat/60000.0;
     }
     if (n==17) {
         if (lat== 0x00d548) {
@@ -849,9 +864,9 @@ function extractBinaryAddressedMessage(aisData,binPayload,nBits) {
     aisData.functionalId = extractInt(binPayload,82,6);
     if (nBits>88) {
         if (nBits>88+920) nBits = 88+920;
-        lenerr = interpretBinaryData(aisData,binPayload,88,nBits);
+        interpretBinaryData(aisData,binPayload,88,nBits);
     }
-    return lenerr;
+    return "";
 }
                                               
 //
@@ -866,7 +881,7 @@ function extractBinaryBroadcastMessage(aisData,binPayload,nBits) {
     aisData.functionalId = extractInt(binPayload,50,6);
     if (nBits>56) {
         if (nBits>56+952) nBits = 56+952;
-        lenerr = interpretBinaryData(aisData,binPayload,56,nBits);
+        interpretBinaryData(aisData,binPayload,56,nBits);
     }
     return "";
 }
@@ -1047,6 +1062,41 @@ function extractChannelManagement(aisData,binPayload,nBits) {
 }
 
 //
+// Decode type 15 message.
+//
+function extractInterrogation(aisData,binPayload,nBits) {
+    aisData.mmsi = [];
+    aisData.offset = [];
+    aisData.requestedType = [];
+    var start = 40;
+    var m = extractInt(binPayload,start,30);
+    aisData.mmsi[0] = padLeft(m.toString(),"0",9);
+    start += 30;
+    aisData.requestedType[0] = extractInt(binPayload,start,6);
+    start += 6;
+    aisData.offset[0] = extractInt(binPayload,start,12);
+    start += 12;
+    start += 2;
+    if (start<nBits) {
+        aisData.mmsi[1] = aisData.mmsi[0];
+        aisData.requestedType[1] = extractInt(binPayload,start,6);
+        start += 6;
+        aisData.offset[1] = extractInt(binPayload,start,12);
+        start += 12;
+        start += 2;
+    }
+    if (start<nBits) {
+        m = extractInt(binPayload,start,30);
+        aisData.mmsi[2] = padLeft(m.toString(),"0",9);
+        start += 30;
+        aisData.requestedType[2] = extractInt(binPayload,start,6);
+        start += 6;
+        aisData.offset[2] = extractInt(binPayload,start,12);
+    }
+    return "";
+}
+                                           
+//
 // Decode type 16 message.
 //
 function extractAssignmentModeCommand(aisData,binPayload,nBits) {
@@ -1098,12 +1148,12 @@ function extractSingleSlotBinaryMessage(aisData,binPayload,nBits) {
     }
     if (nBits>start) {
         if (structured) {
-            lenerr = interpretBinaryData(aisData,binPayload,start,nBits);
+            interpretBinaryData(aisData,binPayload,start,nBits);
         } else {
             aisData.binaryData = extractBinary(binPayload,start,nBits-start);
         }
     }
-    return lenerr;
+    return "";
 }
 
 //
@@ -1121,58 +1171,282 @@ function checkPayloadLength(aisData,nBits,minimum) {
 //
                                               
 const dispatch = [
-    {"mty": 6,  "dac": 0,  "fid":  0,                            "text": "Monitoring aids to navigation"},
-    {"mty": 6,  "dac": 1,  "fid":  2,                            "text": "Interrogation for specified FMs within the IAI branch"},
-    {"mty": 6,  "dac": 1,  "fid":  3,                            "text": "Capability interrogation"},
-    {"mty": 6,  "dac": 1,  "fid":  4,                            "text": "Capability reply"},
-    {"mty": 6,  "dac": 1,  "fid": 40,  "func": interpret_6_1_40, "text": "Number of persons on board"},
-    {"mty":25,  "dac": 1,  "fid":  0,  "func": interpret_25_1_0, "text": "Text using 6-bit ASCII"},
-    // ToDo: extend the decoding capabilities for messages 6 8 and 25. See https://www.iala-aism.org/asm/
+    {"mty": 6,  "dac": 0,  "fid":  0,  "func": interpret_6_0_0,   "minlen": 136, "text": "Navigation aid status"},
+    {"mty": 6,  "dac": 1,  "fid":  2,  "func": interpret_6_1_2,   "minlen": 104, "text": "Capability interrogation for specified DAC/FID"},
+    {"mty": 6,  "dac": 1,  "fid":  3,  "func": interpret_6_1_3,   "minlen":  98, "text": "Capability interrogation for specified DAC"},
+    {"mty": 6,  "dac": 1,  "fid":  4,  "func": interpret_6_1_4,   "minlen": 224, "text": "Capability reply"},
+    {"mty": 6,  "dac": 1,  "fid": 40,  "func": interpret_6_1_40,  "minlen": 101, "text": "Number of persons on board"},
+    {"mty": 6,  "dac": 235,"fid": 10,  "func": interpret_6_235_10,"minlen": 136, "text": "Navigation aid status"},
+    {"mty": 8,  "dac": 1,  "fid": 11,  "func": interpret_8_1_11,  "minlen": 352, "text": "Meterological and hydrological data"},
+    {"mty": 8,  "dac": 1,  "fid": 16,  "func": interpret_8_1_16,  "minlen": 176, "text": "Vessel traffic services target list"},
+    {"mty": 8,  "dac": 200,"fid": 10,  "func": interpret_8_200_10,"minlen": 160, "text": "Inland ship voyage-related data"},
+    {"mty":25,  "dac": 1,  "fid":  0,  "func": interpret_25_1_0,  "minlen":   0, "text": "Text using 6-bit ASCII"},
 ];
                                 
 function interpretBinaryData(aisData,binPayload,start,nBits) {
+    aisData.messageSubtype = aisData.designatedAreaCode+","+aisData.functionalId;
     var i;
     for (i=0;i<dispatch.length;i++) {
         if (dispatch[i].mty==aisData.messageType &&
             dispatch[i].dac==aisData.designatedAreaCode &&
             dispatch[i].fid==aisData.functionalId) {
-            aisData.messageSubtype = dispatch[i].dac+","+dispatch[i].fid;
-            aisData.messageSubtype_text = aisData.messageSubtype+": "+dispatch[i].text;
             if (dispatch[i].func===undefined) {
                 break;
-            } else {
-                return dispatch[i].func(aisData,binPayload,start,nBits-start);
             }
+            if (nBits<dispatch[i].minlen) {
+                break;
+            }
+            aisData.messageSubtype_text = aisData.messageSubtype+": "+dispatch[i].text;
+            dispatch[i].func(aisData,binPayload,start,nBits);
+            return;
         }
     }
     aisData.binaryData = extractBinary(binPayload,start,nBits-start);
-    return "";
 }
 
-function interpret_6_1_40(aisData,binPayload,start,binLength) {
-    var lenerr = "";
-    if (binLength<16) {
-        lenerr = "Cannot fully decode message type "+aisData.messageType+" ("+aisData.messageSubtype+"): insufficient data in payload.";
-    } else {
-        var n = extractInt(binPayload,start,13);
-        if (n) aisData.numberOfPersons = n;
+function interpret_6_0_0(aisData,binPayload,start,nBits) {
+    aisData.subApplicationId = extractInt(binPayload,start,16);
+    start += 16;
+    aisData.lanternSupplyVoltage = extractInt(binPayload,start,12) * 0.1;
+    start += 12;
+    aisData.lanternDrainCurrent = extractInt(binPayload,start,10) * 0.1;
+    start += 10;
+    aisData.powerDC = Boolean(extractInt(binPayload,start,1));
+    start += 1;
+    aisData.lightOn = Boolean(extractInt(binPayload,start,1));
+    start += 1;
+    aisData.batteryLow = Boolean(extractInt(binPayload,start,1));
+    start += 1;
+    aisData.offPosition = Boolean(extractInt(binPayload,start,1));
+}
+
+function interpret_6_1_2(aisData,binPayload,start,nBits) {
+    aisData.requestedDAC = extractInt(binPayload,start,10);
+    aisData.requestedFID = extractInt(binPayload,start+10,6);
+}
+                                           
+function interpret_6_1_3(aisData,binPayload,start,nBits) {
+    aisData.requestedDAC = extractInt(binPayload,start,10);
+}
+                                           
+function interpret_6_1_4(aisData,binPayload,start,nBits) {
+    aisData.supportedFID = [];
+    for (var i=0;i<64;i++) {
+        aisData.supportedFID[i] = Boolean(extractInt(binPayload,start,1));
+        start += 2;
     }
-    return lenerr;
+}
+                                                                                      
+function interpret_6_1_40(aisData,binPayload,start,nBits) {
+    var n = extractInt(binPayload,start,13);
+    if (n) aisData.numberOfPersons = n;
 }
 
-function interpret_25_1_0(aisData,binPayload,start,binLength) {
-    var lenerr = "";
-    if (binLength<11) {
-        lenerr = "Cannot fully decode message type "+aisData.messageType+" ("+aisData.messageSubtype+"): insufficient data in payload.";
+function interpret_6_235_10(aisData,binPayload,start,nBits) {
+    if (nBits>138) {
+        aisData.messageSubtype_text = aisData.messageSubtype;
+        aisData.binaryData = extractBinary(binPayload,start,nBits-start);
+    } else {
+        aisData.voltageInternal = extractInt(binPayload,start,10) * 0.05;
+        start += 10;
+        aisData.voltageExternal1 = extractInt(binPayload,start,10) * 0.05;
+        start += 10;
+        aisData.voltageExternal2 = extractInt(binPayload,start,10) * 0.05;
+        start += 10;
+        aisData.statusBitsInternal = extractInt(binPayload,start,5);
+        start += 5;
+        aisData.statusBitsExternal = extractInt(binPayload,start,8);
+        start += 8;
+        aisData.offPosition = Boolean(extractInt(binPayload,start,1));
+    }
+}
+
+function interpret_8_1_11(aisData,binPayload,start,nBits) {
+    aisData.latitude = extractLat(binPayload,start,24);
+    start += 24;
+    aisData.longitude = extractLong(binPayload,start,25);
+    start += 25;
+    var x = extractInt(binPayload,start,5);
+    if (x!=0) aisData.timeStampDay = x;
+    start += 5;
+    x = extractInt(binPayload,start,5);
+    if (x<24) aisData.timeStampHour = x;
+    start += 5;
+    x = extractInt(binPayload,start,6);
+    if (x<60) aisData.timeStampMinute = x;
+    start += 6;
+    x = extractInt(binPayload,start,7);
+    if (x!=127) aisData.windSpeedAverage = x;
+    start += 7;
+    x = extractInt(binPayload,start,7);
+    if (x!=127) aisData.windSpeedGust = x;
+    start += 7;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.windDirection = x;
+    start += 9;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.windGustDirection = x;
+    start += 9;
+    x = extractInt(binPayload,start,11);
+    if (x!=2047) aisData.temperature = (x-600) * 0.1;
+    start += 11;
+    x = extractInt(binPayload,start,7);
+    if (x!=127) aisData.humidity = x;
+    start += 7;
+    x = extractInt(binPayload,start,10);
+    if (x!=1023) aisData.dewPoint = (x-200) * 0.1;
+    start += 10;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.airPressure = 800+x;
+    start += 9;
+    x = extractInt(binPayload,start,2);
+    if (x!=3) aisData.airPressureTrend = x;
+    start += 2;
+    x = extractInt(binPayload,start,8);
+    if (x!=255) aisData.visibility = x * 0.1;
+    start += 8;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.waterLevel = (x-100)*0.1;
+    start += 9;
+    x = extractInt(binPayload,start,2);
+    if (x!=3) aisData.waterLevelTrend = x;
+    start += 2;
+    x = extractInt(binPayload,start,8);
+    if (x!=255) aisData.currentSpeedSurface = x * 0.1;
+    start += 8;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.currentDirectionSurface = x;
+    start += 9;
+    x = extractInt(binPayload,start,8);
+    if (x!=255) aisData.currentSpeedDepth2 = x * 0.1;
+    start += 8;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.currentDirectionDepth2 = x;
+    start += 9;
+    x = extractInt(binPayload,start,5);
+    if (x!=31) aisData.currentDepth2 = x;
+    start += 5;
+    x = extractInt(binPayload,start,8);
+    if (x!=255) aisData.currentSpeedDepth3 = x * 0.1;
+    start += 8;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.currentDirectionDepth3 = x;
+    start += 9;
+    x = extractInt(binPayload,start,5);
+    if (x!=31) aisData.currentDepth3 = x;
+    start += 5;
+    x = extractInt(binPayload,start,8);
+    if (x!=255) aisData.waveHeight = x * 0.1;
+    start += 8;
+    x = extractInt(binPayload,start,6);
+    if (x!=63) aisData.wavePeriod = x;
+    start += 6;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.waveDirection = x;
+    start += 9;
+    x = extractInt(binPayload,start,8);
+    if (x!=255) aisData.swellHeight = x * 0.1;
+    start += 8;
+    x = extractInt(binPayload,start,6);
+    if (x!=63) aisData.swellPeriod = x;
+    start += 6;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.swellDirection = x;
+    start += 9;
+    x = extractInt(binPayload,start,4);
+    if (x<13) aisData.seaState = x;
+    start += 4;
+    x = extractInt(binPayload,start,10);
+    if (x!=1023) aisData.waterTemperature = (x-100) * 0.1;
+    start += 10;
+    x = extractInt(binPayload,start,3);
+    if (x!=7) aisData.precipitationType = x;
+    start += 3;
+    x = extractInt(binPayload,start,9);
+    if (x!=511) aisData.salinity = x * 0.1;
+    start += 9;
+    x = extractInt(binPayload,start,2);
+    if (x<2) aisData.ice = Boolean(x);
+}
+
+function interpret_8_1_16(aisData,binPayload,start,nBits) {
+    var target = [];
+    var x;
+    var n = (nBits - start)/120;
+    if (n>7) n = 7;
+    for (var i=0;i<n;i++) {
+        target[i] = {};
+        var id = extractInt(binPayload,start,2);
+        switch (id) {
+            case 0:
+                x = extractInt(binPayload,start+2,42);
+                target[i].mmsi = padLeft(x.toString(),"0",9);
+                break;
+            case 1:
+                target[i].shipId = extractInt(binPayload,start+2,42);
+                break;
+            case 2:
+                target[i].callsign = extractString(binPayload,start+2,42).trim();
+                break;
+            default:
+                break;
+        }
+        target[i].latitude = extractLat(binPayload,start+48,24);
+        target[i].longitude = extractLong(binPayload,start+72,25);
+        x = extractInt(binPayload,start+97,9);
+        if (x<360) target[i].courseOverGround = x;
+        x = extractInt(binPayload,start+106,6);
+        if (x<60) target[i].timeStampSeconds = x;
+        x = extractInt(binPayload,start+106,8);
+        if (x<250) target[i].speedOverGround = x;
+        start += 120;
+    }
+    aisData.vtsTarget = target;
+}
+
+function interpret_8_200_10(aisData,binPayload,start,nBits) {
+    aisData.europeanVesselIdentificationNumber = extractString(binPayload,start,48).trim();
+    aisData.europeanVesselIdentificationNumber = normaliseString(aisData.europeanVesselIdentificationNumber);
+    start += 48;
+    aisData.lengthOfVessel = extractInt(binPayload,start,13) * 0.1;
+    start += 13;
+    aisData.beamOfVessel = extractInt(binPayload,start,10) * 0.1;
+    start += 10;
+    aisData.inlandVesselType = extractInt(binPayload,start,14);
+    start += 14;
+    var n = extractInt(binPayload,start,3);
+    if (n!=5) aisData.hazardousCargo = n;
+    start += 3;
+    n = extractInt(binPayload,start,11);
+    if (n!=0) aisData.draught = n * 0.01;
+    start += 11;
+    n = extractInt(binPayload,start,2);
+    switch (n) {
+        case 1: aisData.loaded = true; break;
+        case 2: aisData.loaded = false; break;
+        default: break;
+    }
+    start += 2;
+    aisData.speedAccurate = Boolean(extractInt(binPayload,start,1));
+    start += 1;
+    aisData.courseAccurate = Boolean(extractInt(binPayload,start,1));
+    start += 1;
+    aisData.headingAccurate = Boolean(extractInt(binPayload,start,1));
+}
+
+function interpret_25_1_0(aisData,binPayload,start,nBits) {
+    if (nBits<start+11) {
+        aisData.messageSubtype_text = aisData.messageSubtype;
+        aisData.binaryData = extractBinary(binPayload,start,nBits-start);
     } else {
         var n = extractInt(binPayload,start,11);
         if (n) aisData.textMessageSequenceNumber = n;
-        if (binLength>=17) {
-            var s = extractString(binPayload,start+11,binLength-11).trim();
+        start += 11;
+        if (nBits>=start+6) {
+            var s = extractString(binPayload,start,nBits-start).trim();
             aisData.textMessage = normaliseString(s);
         }
     }
-    return lenerr;
 }
 
 //
@@ -1203,6 +1477,10 @@ function addTextFields(msg) {
     msg.payload.fixType_text = textMember(msg,"fixType");
     msg.payload.navAid_text = textMember(msg,"navAid");
     msg.payload.txrxMode_text = textMember(msg,"txrxMode");
+    msg.payload.airPressureTrend_text = textMember(msg,"airPressureTrend");
+    msg.payload.waterLevelTrend_text = textMember(msg,"waterLevelTrend");
+    msg.payload.precipitationType_text = textMember(msg,"precipitationType");
+    msg.payload.seaState_text = textMember(msg,"seaState");
 }
 
 //
@@ -1468,4 +1746,42 @@ const txrxMode_enum = [
     "TxA, RxA/RxB",
     "TxB, RxA/RxB",
     reserved
+];
+
+const waterLevelTrend_enum = [
+    "Steady",
+    "Decreasing",
+    "Increasing"
+];
+                                                                                     
+const airPressureTrend_enum = [
+    "Steady",
+    "Decreasing",
+    "Increasing"
+];
+                                          
+const precipitationType_enum = [
+    reserved,
+    "Rain",
+    "Thunderstorm",
+    "Freezing rain",
+    "Mixed/ice",
+    "Snow",
+    reserved
+];
+                                           
+const seaState_enum = [
+    "Flat.",
+    "Ripples without crests.",
+    "Small wavelets. Crests of glassy appearance, not breaking.",
+    "Large wavelets. Crests begin to break; scattered whitecaps.",
+    "Small waves.",
+    "Moderate (1.2 m) longer waves. Some foam and spray.",
+    "Large waves with foam crests and some spray.",
+    "Sea heaps up and foam begins to streak.",
+    "Moderately high waves with breaking crests forming spindrift. Streaks of foam.",
+    "High waves (6-7 m) with dense foam. Wave crests start to roll over. Considerable spray.",
+    "Very high waves. The sea surface is white and there is considerable tumbling. Visibility is reduced.",
+    "Exceptionally high waves.",
+    "Huge waves. Air filled with foam and spray. Sea completely white with driving spray. Visibility greatly reduced."
 ];
