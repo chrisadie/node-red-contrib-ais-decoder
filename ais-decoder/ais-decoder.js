@@ -126,7 +126,7 @@ function reconstructFragments(frags) {
 // Add a fragment to the list of fragments, returning a list of fragments
 // if all fragments have been recieved.
 //
-function processMultiFragments(node,frag) {	
+function processMultiFragments(node,frag) {
 	var list = node.context().get("fragmentList");
 	addFragmentToList(list,frag);
 	var f = extractComplete(list);
@@ -445,7 +445,7 @@ function extractInt(nobbles,start,nBits,signed=false) {
 	}
 	return result;
 }
-                            
+
 //
 // Extract a string from nobble array. Second parameter is the bit
 // count to start from, nBits is the number of bits to extract to form
@@ -520,7 +520,7 @@ function extractLong(binPayload,start,n) {
     }
     return undefined;
 }
-                            
+
 //
 // Extract latitude from payload
 //
@@ -546,7 +546,7 @@ function extractLat(binPayload,start,n) {
     }
     return undefined;
 }
-                                                        
+
 //
 // Extract lat and long from payload
 //
@@ -554,7 +554,7 @@ function extractLatLong(aisData,binPayload,start) {
     aisData.longitude = extractLong(binPayload,start,28);
     aisData.latitude = extractLat(binPayload,start+28,27);
 }
-                            
+
 //
 // Extract dimensions from payload
 //
@@ -571,7 +571,7 @@ function extractDimensions(aisData,binPayload,start) {
     d = extractInt(binPayload,start,6);
     if (d!=0) aisData.dimensionToStarboard = d;
 }
-                                                        
+
 //
 // Decode position report type A (message types 1 2 3). Update the ais data object, and return
 // empty string, or error string.
@@ -685,7 +685,7 @@ function extractPositionReportB(aisData,binPayload,nBits) {
     }
     return "";
 }
-                            
+
 //
 // Rate of turn decodong
 //
@@ -868,7 +868,7 @@ function extractBinaryAddressedMessage(aisData,binPayload,nBits) {
     }
     return "";
 }
-                                              
+
 //
 // Decode binary broadcast message (message type 8).
 //
@@ -1050,10 +1050,10 @@ function extractChannelManagement(aisData,binPayload,nBits) {
         m = extractInt(binPayload,104,30);
         aisData.mmsi[1] = padLeft(m.toString(),"0",9);
     } else {
-        aisData.coverageEasternLimit = extractLong(binPayload,69,18,true);
-        aisData.coverageNorthernLimit = extractLat(binPayload,87,17,true);
-        aisData.coverageWesternLimit = extractLong(binPayload,104,18,true);
-        aisData.coverageSouthernLimit = extractLat(binPayload,122,17,true);
+        aisData.coverageEasternLimit = extractLong(binPayload,69,18);
+        aisData.coverageNorthernLimit = extractLat(binPayload,87,17);
+        aisData.coverageWesternLimit = extractLong(binPayload,104,18);
+        aisData.coverageSouthernLimit = extractLat(binPayload,122,17);
     }
     aisData.channelAbw = Boolean(extractInt(binPayload,140,1));
     aisData.channelBbw = Boolean(extractInt(binPayload,141,1));
@@ -1095,7 +1095,7 @@ function extractInterrogation(aisData,binPayload,nBits) {
     }
     return "";
 }
-                                           
+
 //
 // Decode type 16 message.
 //
@@ -1169,7 +1169,7 @@ function checkPayloadLength(aisData,nBits,minimum) {
 //
 // Certain messages contain embedded binary data which is interpreted according to the DAC and FID.
 //
-                                              
+
 const dispatch = [
     {"mty": 6,  "dac": 0,  "fid":  0,  "func": interpret_6_0_0,   "minlen": 136, "text": "Navigation aid status"},
     {"mty": 6,  "dac": 1,  "fid":  2,  "func": interpret_6_1_2,   "minlen": 104, "text": "Capability interrogation for specified DAC/FID"},
@@ -1182,7 +1182,7 @@ const dispatch = [
     {"mty": 8,  "dac": 200,"fid": 10,  "func": interpret_8_200_10,"minlen": 160, "text": "Inland ship voyage-related data"},
     {"mty":25,  "dac": 1,  "fid":  0,  "func": interpret_25_1_0,  "minlen":   0, "text": "Text using 6-bit ASCII"},
 ];
-                                
+
 function interpretBinaryData(aisData,binPayload,start,nBits) {
     aisData.messageSubtype = aisData.designatedAreaCode+","+aisData.functionalId;
     var i;
@@ -1224,11 +1224,11 @@ function interpret_6_1_2(aisData,binPayload,start,nBits) {
     aisData.requestedDAC = extractInt(binPayload,start,10);
     aisData.requestedFID = extractInt(binPayload,start+10,6);
 }
-                                           
+
 function interpret_6_1_3(aisData,binPayload,start,nBits) {
     aisData.requestedDAC = extractInt(binPayload,start,10);
 }
-                                           
+
 function interpret_6_1_4(aisData,binPayload,start,nBits) {
     aisData.supportedFID = [];
     for (var i=0;i<64;i++) {
@@ -1236,7 +1236,7 @@ function interpret_6_1_4(aisData,binPayload,start,nBits) {
         start += 2;
     }
 }
-                                                                                      
+
 function interpret_6_1_40(aisData,binPayload,start,nBits) {
     var n = extractInt(binPayload,start,13);
     if (n) aisData.numberOfPersons = n;
@@ -1324,7 +1324,7 @@ function interpret_8_1_11(aisData,binPayload,start,nBits) {
     if (x!=511) aisData.currentDirectionDepth2 = x;
     start += 9;
     x = extractInt(binPayload,start,5);
-    if (x!=31) aisData.currentDepth2 = x;
+    if (x!=31) aisData.currentDepth2 = x * 0.1;
     start += 5;
     x = extractInt(binPayload,start,8);
     if (x!=255) aisData.currentSpeedDepth3 = x * 0.1;
@@ -1333,7 +1333,7 @@ function interpret_8_1_11(aisData,binPayload,start,nBits) {
     if (x!=511) aisData.currentDirectionDepth3 = x;
     start += 9;
     x = extractInt(binPayload,start,5);
-    if (x!=31) aisData.currentDepth3 = x;
+    if (x!=31) aisData.currentDepth3 = x * 0.1;
     start += 5;
     x = extractInt(binPayload,start,8);
     if (x!=255) aisData.waveHeight = x * 0.1;
@@ -1408,13 +1408,15 @@ function interpret_8_200_10(aisData,binPayload,start,nBits) {
     aisData.europeanVesselIdentificationNumber = extractString(binPayload,start,48).trim();
     aisData.europeanVesselIdentificationNumber = normaliseString(aisData.europeanVesselIdentificationNumber);
     start += 48;
-    aisData.lengthOfVessel = extractInt(binPayload,start,13) * 0.1;
+    var n = extractInt(binPayload,start,13);
+    if (n!=0) aisData.lengthOfVessel = n * 0.1;
     start += 13;
-    aisData.beamOfVessel = extractInt(binPayload,start,10) * 0.1;
+    n = extractInt(binPayload,start,10);
+    if (n!=0) aisData.beamOfVessel = n * 0.1;
     start += 10;
     aisData.inlandVesselType = extractInt(binPayload,start,14);
     start += 14;
-    var n = extractInt(binPayload,start,3);
+    n = extractInt(binPayload,start,3);
     if (n!=5) aisData.hazardousCargo = n;
     start += 3;
     n = extractInt(binPayload,start,11);
@@ -1500,10 +1502,10 @@ function textMember(msg,memberName,offset=0) {
     }
     return result;
 }
-                                           
+
 const unexpected = "Unexpected value";
 const reserved = "Reserved for future use";
-                                           
+
 const talkerId_enum = [
     {id: "AI", desc: "Mobile AIS station"},
     {id: "AB", desc: "NMEA 4.0 base AIS station"},
@@ -1516,7 +1518,7 @@ const talkerId_enum = [
     {id: "BS", desc: "Base AIS station "},
     {id: "SA", desc: "NMEA 4.0 physical shore AIS station"}
 ];
-                                           
+
 const sentenceId_enum = [
     {id: "VDM", desc: "AIS VHF data-link message"},
     {id: "VDO", desc: "AIS VHF data-link own-vessel report"}
@@ -1590,7 +1592,7 @@ const manoeuvre_enum = [
     "no special manoeuvre",
     "special manoeuvre"
 ];
-                                           
+
 const shipType_enum = [
     unexpected, // 0
     reserved,   // 1
@@ -1753,13 +1755,13 @@ const waterLevelTrend_enum = [
     "Decreasing",
     "Increasing"
 ];
-                                                                                     
+
 const airPressureTrend_enum = [
     "Steady",
     "Decreasing",
     "Increasing"
 ];
-                                          
+
 const precipitationType_enum = [
     reserved,
     "Rain",
@@ -1769,7 +1771,7 @@ const precipitationType_enum = [
     "Snow",
     reserved
 ];
-                                           
+
 const seaState_enum = [
     "Flat.",
     "Ripples without crests.",

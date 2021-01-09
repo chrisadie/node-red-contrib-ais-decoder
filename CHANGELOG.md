@@ -1,4 +1,8 @@
 # CHANGELOG.md
+## 1.1.1
+- In message 8 (DAC=200,FID=10) no length/beam value returned if not known (issue 23).
+- In message 8 (DAC=1,FID=11) current measurement depths are now correctly scaled (issue 22).
+
 ## 1.1.0
 - New ubiquitous output property `msg.payload.channel` is the radio channel on which the message was sent (issue 21).
 - Message type 15 now decoded.
