@@ -56,9 +56,9 @@ function processMessage(node,msg) {
         msg.resultCode = 3;
       } else {
         // Message decoded successfully
-        msg.payload = result;
         msg.originalAisMessage = result.aisOriginal;
-        result.aisOriginal = undefined;
+        delete result.aisOriginal;
+        msg.payload = result;
         msg.payload.talkerId = msg.originalAisMessage[0].slice(1,3);
         msg.payload.sentenceId = msg.originalAisMessage[0].slice(3,6);
         msg.resultCode = 0;
@@ -1463,37 +1463,65 @@ function addTextFields(msg) {
       break;
     }
   }
-  msg.payload.messageType_text = textMember(msg,"messageType");
-  msg.payload.navigationStatus_text = textMember(msg,"navigationStatus");
-  msg.payload.turningDirection_text = textMember(msg,"turningDirection",1);
-  msg.payload.positioningSystemStatus_text = textMember(msg,"positioningSystemStatus");
-  msg.payload.manoeuvre_text = textMember(msg,"manoeuvre");
-  msg.payload.shipType_text = textMember(msg,"shipType");
-  msg.payload.fixType_text = textMember(msg,"fixType");
-  msg.payload.navAid_text = textMember(msg,"navAid");
-  msg.payload.txrxMode_text = textMember(msg,"txrxMode");
-  msg.payload.airPressureTrend_text = textMember(msg,"airPressureTrend");
-  msg.payload.waterLevelTrend_text = textMember(msg,"waterLevelTrend");
-  msg.payload.precipitationType_text = textMember(msg,"precipitationType");
-  msg.payload.seaState_text = textMember(msg,"seaState");
+  if (!isNaN(msg.payload.messageType)){
+    msg.payload.messageType_text = textFor(messageType_enum,msg.payload.messageType);
+  }
+  if (!isNaN(msg.payload.navigationStatus)){
+    msg.payload.navigationStatus_text = textFor(navigationStatus_enum,msg.payload.navigationStatus);
+  }
+  if (!isNaN(msg.payload.turningDirection)){
+    msg.payload.turningDirection_text = textFor(turningDirection_enum,msg.payload.turningDirection+1);
+  }
+  if (!isNaN(msg.payload.positioningSystemStatus)){
+    msg.payload.positioningSystemStatus_text = textFor(positioningSystemStatus_enum,msg.payload.positioningSystemStatus);
+  }
+  if (!isNaN(msg.payload.manoeuvre)){
+    msg.payload.manoeuvre_text = textFor(manoeuvre_enum,msg.payload.manoeuvre);
+  }
+  if (!isNaN(msg.payload.shipType)){
+    msg.payload.shipType_text = textFor(shipType_enum,msg.payload.shipType);
+  }
+  if (!isNaN(msg.payload.fixType)){
+    msg.payload.fixType_text = textFor(fixType_enum,msg.payload.fixType);
+  }
+  if (!isNaN(msg.payload.navAid)){
+    msg.payload.navAid_text = textFor(navAid_enum,msg.payload.navAid);
+  }
+  if (!isNaN(msg.payload.txrxMode)){
+    msg.payload.txrxMode_text = textFor(txrxMode_enum,msg.payload.txrxMode);
+  }
+  if (!isNaN(msg.payload.airPressureTrend)){
+    msg.payload.airPressureTrend_text = textFor(airPressureTrend_enum,msg.payload.airPressureTrend);
+  }
+  if (!isNaN(msg.payload.waterLevelTrend)){
+    msg.payload.waterLevelTrend_text = textFor(waterLevelTrend_enum,msg.payload.waterLevelTrend);
+  }
+  if (!isNaN(msg.payload.precipitationType)){
+    msg.payload.precipitationType_text = textFor(precipitationType_enum,msg.payload.precipitationType);
+  }
+  if (!isNaN(msg.payload.seaState)) {
+    msg.payload.seaState_text = textFor(seaState_enum,msg.payload.seaState);
+  }
+  if (!isNaN(msg.payload.inlandVesselType)) {
+    msg.payload.inlandVesselType_text = unexpected;
+    for (i=0;i<inlandVesselType_enum.length;i++) {
+      if (inlandVesselType_enum[i].id==msg.payload.inlandVesselType) {
+        msg.payload.inlandVesselType_text = inlandVesselType_enum[i].desc;
+        break;
+      }
+    }
+  }
 }
 
 //
-// Return the textual interpretation of the given payload member
+// Return descriptive text by index, or default to "unexpected".
 //
-function textMember(msg,memberName,offset=0) {
-  var result;
-  var member = eval("msg.payload."+memberName);
-  if (!isNaN(member)) {
-    member += offset;
-    var lengthEnumArray = eval(memberName+"_enum.length");
-    if (member < lengthEnumArray) {
-      result = eval(memberName+"_enum[member]");
-    } else {
-      result = unexpected;
-    }
+function textFor(descriptions,i) {
+  if (i>=0 && i<descriptions.length) {
+    return descriptions[i];
+  } else {
+    return unexpected;
   }
-  return result;
 }
 
 const unexpected = "Unexpected value";
@@ -1779,4 +1807,83 @@ const seaState_enum = [
   "Very high waves. The sea surface is white and there is considerable tumbling. Visibility is reduced.",
   "Exceptionally high waves.",
   "Huge waves. Air filled with foam and spray. Sea completely white with driving spray. Visibility greatly reduced."
+];
+
+const inlandVesselType_enum = [
+  {id: 8000,	desc: "Vessel, type unknown"},
+  {id: 8010,	desc:	"Motor freighter"},
+  {id: 8020,	desc: "Motor tanker"},
+  {id: 8021,	desc: "Motor tanker, liquid cargo, type N"},
+  {id: 8022,	desc: "Motor tanker, liquid cargo, type C"},
+  {id: 8023,	desc: "Motor tanker, dry cargo as if liquid (e.g. cement)"},
+  {id: 8030,	desc: "Container vessel"},
+  {id: 8040,	desc: "Gas tanker"},
+  {id: 8050,	desc: "Motor freighter, tug"},
+  {id: 8060,	desc: "Motor tanker, tug"},
+  {id: 8070,	desc: "Motor freighter with one or more ships alongside"},
+  {id: 8080,	desc: "Motor freighter with tanker"},
+  {id: 8090,	desc: "Motor freighter pushing one or more freighters"},
+  {id: 8100,	desc: "Motor freighter pushing at least one tank-ship"},
+  {id: 8110,	desc: "Tug, freighter"},
+  {id: 8120,	desc: "Tug, tanker"},
+  {id: 8130,	desc: "Tug, freighter, coupled"},
+  {id: 8140,	desc: "Tug, freighter/tanker, coupled"},
+  {id: 8150,	desc: "Freightbarge"},
+  {id: 8160,	desc: "Tankbarge"},
+  {id: 8161,	desc: "Tankbarge, liquid cargo, type N"},
+  {id: 8162,	desc: "Tankbarge, liquid cargo, type C"},
+  {id: 8163,	desc: "Tankbarge, dry cargo as if liquid (e.g. cement)"},
+  {id: 8170,	desc: "Freightbarge with containers"},
+  {id: 8180,	desc: "Tankbarge, gas"},
+  {id: 8210,	desc: "Pushtow, one cargo barge"},
+  {id: 8220,	desc: "Pushtow, two cargo barges"},
+  {id: 8230,	desc: "Pushtow, three cargo barges"},
+  {id: 8240,	desc: "Pushtow, four cargo barges"},
+  {id: 8250,	desc: "Pushtow, five cargo barges"},
+  {id: 8260,	desc: "Pushtow, six cargo barges"},
+  {id: 8270,	desc: "Pushtow, seven cargo barges"},
+  {id: 8280,	desc: "Pushtow, eigth cargo barges"},
+  {id: 8290,	desc: "Pushtow, nine or more barges"},
+  {id: 8310,	desc: "Pushtow, one tank/gas barge"},
+  {id: 8320,	desc: "Pushtow, two barges at least one tanker or gas barge"},
+  {id: 8330,	desc: "Pushtow, three barges at least one tanker or gas barge"},
+  {id: 8340,	desc: "Pushtow, four barges at least one tanker or gas barge"},
+  {id: 8350,	desc: "Pushtow, five barges at least one tanker or gas barge"},
+  {id: 8360,	desc: "Pushtow, six barges at least one tanker or gas barge"},
+  {id: 8370,	desc: "Pushtow, seven barges at least one tanker or gas barge"},
+  {id: 8380,	desc: "Pushtow, eight barges at least one tanker or gas barge"},
+  {id: 8390,	desc: "Pushtow, nine or more barges at least one tanker or gas barge"},
+  {id: 8400,	desc: "Tug, single"},
+  {id: 8410,	desc: "Tug, one or more tows"},
+  {id: 8420,	desc: "Tug, assisting a vessel or linked combination"},
+  {id: 8430,	desc: "Pushboat, single"},
+  {id: 8440,	desc: "Passenger ship, ferry, red cross ship, cruise ship"},
+  {id: 8441,	desc: "Ferry"},
+  {id: 8442,	desc: "Red cross ship"},
+  {id: 8443,	desc: "Cruise ship"},
+  {id: 8444,	desc: "Passenger ship without accommodation"},
+  {id: 8445,	desc: "Day-trip high speed vessel"},
+  {id: 8446,	desc: "Day-trip hydrofoil vessel"},
+  {id: 8447,	desc: "Sailing cruise ship"},
+  {id: 8448,	desc: "Sailing passenger ship without accommodation"},
+  {id: 8450,	desc: "Service vessel, police patrol, port service"},
+  {id: 8451,	desc: "Service vessel"},
+  {id: 8452,	desc: "Police patrol vessel"},
+  {id: 8453,	desc: "Port service vessel"},
+  {id: 8454,	desc: "Navigation surveillance vessel"},
+  {id: 8460,	desc: "Vessel, work maintenance craft, floating derrick, cable-ship, buoy-ship, dredge"},
+  {id: 8470,	desc: "Object, towed, not otherwise specified"},
+  {id: 8480,	desc: "Fishing boat"},
+  {id: 8490,	desc: "Bunkership"},
+  {id: 8500,	desc: "Barge, tanker, chemical"},
+  {id: 8510,	desc: "Object, not otherwise specified"},
+  {id: 1500,	desc: "General cargo Vessel maritime"},
+  {id: 1510,	desc: "Unit carrier maritime"},
+  {id: 1520,	desc: "Bulk carrier maritime"},
+  {id: 1530,	desc: "Tanker"},
+  {id: 1540,	desc: "Liquefied gas tanker"},
+  {id: 1850,	desc: "Pleasure craft, longer than 20 metres"},
+  {id: 1900,	desc: "Fast ship"},
+  {id: 1910,	desc: "Hydrofoil"},
+  {id: 1920,	desc: "Catamaran fast"},
 ];
