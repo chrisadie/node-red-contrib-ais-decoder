@@ -1,4 +1,9 @@
 # CHANGELOG.md
+## 1.1.2
+- The `inlandVesselType_text` property has been implemented (issue 24).
+- There are no redundant `undefined` values in the output payload (issue 26).
+- Code indentation has been adjusted.
+
 ## 1.1.1
 - In message 8 (DAC=200,FID=10) no length/beam value returned if not known (issue 23).
 - In message 8 (DAC=1,FID=11) current measurement depths are now correctly scaled (issue 22).
