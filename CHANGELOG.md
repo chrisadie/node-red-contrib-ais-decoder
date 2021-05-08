@@ -1,4 +1,9 @@
 # CHANGELOG.md
+## 1.2.0
+- Message type 7 (binary acknowledge) is now supported.
+- Note that `msg.payload.sequenceNumber` is now an integer array.
+- Bug decoding message type 22 fixed (issue 27).
+
 ## 1.1.2
 - The `inlandVesselType_text` property has been implemented (issue 24).
 - There are no redundant `undefined` values in the output payload (issue 26).

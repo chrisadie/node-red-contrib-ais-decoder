@@ -354,6 +354,9 @@ function decodeAisSentence(frags,err) {
     case 6:
     err.reason = extractBinaryAddressedMessage(aisData,binPayload,nBits);
     break;
+    case 7:
+    err.reason = extractBinaryAcknowledgeMessage(aisData,binPayload,nBits);
+    break;
     case 8:
     err.reason = extractBinaryBroadcastMessage(aisData,binPayload,nBits);
     break;
@@ -851,7 +854,8 @@ function extractBinaryAddressedMessage(aisData,binPayload,nBits) {
   if (lenerr) {
     return lenerr;
   }
-  aisData.sequenceNumber = extractInt(binPayload,38,2);
+  aisData.sequenceNumber = [];
+  aisData.sequenceNumber[0] = extractInt(binPayload,38,2);
   var mmsi = extractInt(binPayload,40,30);
   aisData.destinationMmsi = padLeft(mmsi.toString(),"0",9);
   aisData.retransmitted = Boolean(extractInt(binPayload,70,1));
@@ -860,6 +864,46 @@ function extractBinaryAddressedMessage(aisData,binPayload,nBits) {
   if (nBits>88) {
     if (nBits>88+920) nBits = 88+920;
     interpretBinaryData(aisData,binPayload,88,nBits);
+  }
+  return "";
+}
+
+//
+// Decode binary acknowledge message (message type 7).
+//
+function extractBinaryAcknowledgeMessage(aisData,binPayload,nBits) {
+  var lenerr = checkPayloadLength(aisData,nBits,72);
+  if (lenerr) {
+    return lenerr;
+  }
+  aisData.mmsi = [];
+  aisData.sequenceNumber = [];
+  var start = 40;
+  var m = extractInt(binPayload,start,30);
+  aisData.mmsi[0] = padLeft(m.toString(),"0",9);
+  start += 30;
+  aisData.sequenceNumber[0] = extractInt(binPayload,start,2);
+  start += 2;
+  if (start<nBits) {
+    m = extractInt(binPayload,start,30);
+    aisData.mmsi[1] = padLeft(m.toString(),"0",9);
+    start += 30;
+    aisData.sequenceNumber[1] = extractInt(binPayload,start,2);
+    start += 2;
+  }
+  if (start<nBits) {
+    m = extractInt(binPayload,start,30);
+    aisData.mmsi[2] = padLeft(m.toString(),"0",9);
+    start += 30;
+    aisData.sequenceNumber[2] = extractInt(binPayload,start,2);
+    start += 2;
+  }
+  if (start<nBits) {
+    m = extractInt(binPayload,start,30);
+    aisData.mmsi[3] = padLeft(m.toString(),"0",9);
+    start += 30;
+    aisData.sequenceNumber[3] = extractInt(binPayload,start,2);
+    start += 2;
   }
   return "";
 }
@@ -1040,6 +1084,7 @@ function extractChannelManagement(aisData,binPayload,nBits) {
   aisData.highPower = Boolean(extractInt(binPayload,68,1));
   var addressed = extractInt(binPayload,139,1);
   if (addressed) {
+    aisData.mmsi = [];
     var m = extractInt(binPayload,69,30);
     aisData.mmsi[0] = padLeft(m.toString(),"0",9);
     m = extractInt(binPayload,104,30);
