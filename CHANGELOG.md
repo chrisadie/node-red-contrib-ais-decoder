@@ -1,4 +1,11 @@
 # CHANGELOG.md
+## 1.2.1
+- Message type 13 (safety related acknowledgement) is now supported.
+- Message type 8 (DAC=1,FID=29) now decoded.
+- Bug fixed: inconsistent use of `msg.aisOriginal` (issue 28).
+- Javascript errors now caught and returned with `msg.resultCode` 3.
+- Web decoder example flow updated to handle `msg.aisOriginal` correctly.
+
 ## 1.2.0
 - Message type 7 (binary acknowledge) is now supported.
 - Note that `msg.payload.sequenceNumber` is now an integer array.

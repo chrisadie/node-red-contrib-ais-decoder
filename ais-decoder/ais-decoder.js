@@ -42,7 +42,12 @@ function processMessage(node,msg) {
   var f;
   f = msg.payload.trim();
   if (f) {
-    result = processFragment(node,f);
+    try {
+      result = processFragment(node,f);
+    }
+    catch (err) {
+      result = {"aisOriginal": [f], "errorInfo": "Javascript "+err.name+": "+err.message};
+    }
     if (result===null) {
       // Partial message
       msg.payload = undefined;
@@ -84,7 +89,7 @@ function processFragment(node,f) {
   var frag = parseFragment(f,err);
   if (frag===null) {
     // Parse error
-    result = {"aisOriginal": f, "errorInfo": err.reason};
+    result = {"aisOriginal": [f], "errorInfo": err.reason};
     return result;
   }
   if (frag.fCount==1) {
@@ -355,6 +360,7 @@ function decodeAisSentence(frags,err) {
     err.reason = extractBinaryAddressedMessage(aisData,binPayload,nBits);
     break;
     case 7:
+    case 13:
     err.reason = extractBinaryAcknowledgeMessage(aisData,binPayload,nBits);
     break;
     case 8:
@@ -1219,6 +1225,7 @@ const dispatch = [
   {"mty": 6,  "dac": 235,"fid": 10,  "func": interpret_6_235_10,"minlen": 136, "text": "Navigation aid status"},
   {"mty": 8,  "dac": 1,  "fid": 11,  "func": interpret_8_1_11,  "minlen": 352, "text": "Meterological and hydrological data"},
   {"mty": 8,  "dac": 1,  "fid": 16,  "func": interpret_8_1_16,  "minlen": 176, "text": "Vessel traffic services target list"},
+  {"mty": 8,  "dac": 1,  "fid": 29,  "func": interpret_8_1_29,  "minlen": 10,  "text": "Text description (broadcast)"},
   {"mty": 8,  "dac": 200,"fid": 10,  "func": interpret_8_200_10,"minlen": 160, "text": "Inland ship voyage-related data"},
   {"mty":25,  "dac": 1,  "fid":  0,  "func": interpret_25_1_0,  "minlen":   0, "text": "Text using 6-bit ASCII"},
 ];
@@ -1440,6 +1447,17 @@ function interpret_8_1_16(aisData,binPayload,start,nBits) {
     start += 120;
   }
   aisData.vtsTarget = target;
+}
+
+function interpret_8_1_29(aisData,binPayload,start,nBits) {
+  var x = extractInt(binPayload,start,10);
+  if (x>0) aisData.messageLinkageId = x;
+  start += 10;
+  nBits -= 10;
+  if (nBits>=6) {
+    aisData.textMessage = extractString(binPayload,start,nBits).trim();
+    aisData.textMessage = normaliseString(aisData.textMessage);
+  }
 }
 
 function interpret_8_200_10(aisData,binPayload,start,nBits) {
