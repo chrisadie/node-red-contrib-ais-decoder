@@ -1,5 +1,5 @@
 /**
-* Copyright (C) 2020 Chris Adie
+* Copyright (C) 2020-2023 Chris Adie
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -371,6 +371,12 @@ function decodeAisSentence(frags,err) {
     break;
     case 10:
     err.reason = extractUtcEnquiry(aisData,binPayload,nBits);
+    break;
+    case 12:
+    err.reason = extractAddressedSafetyRelatedMessage(aisData, binPayload, nBits);
+    break;
+    case 14:
+    err.reason = extractSafetyRelatedBroadcastMessage(aisData, binPayload, nBits);
     break;
     case 15:
     err.reason = extractInterrogation(aisData,binPayload,nBits);
@@ -1198,6 +1204,43 @@ function extractSingleSlotBinaryMessage(aisData,binPayload,nBits) {
     } else {
       aisData.binaryData = extractBinary(binPayload,start,nBits-start);
     }
+  }
+  return "";
+}
+
+//
+// Decode type 12 message
+//
+function extractAddressedSafetyRelatedMessage(aisData, binPayload, nBits) {
+  var lenerr = checkPayloadLength(aisData, nBits, 72);
+  if (lenerr) {
+    return lenerr;
+  }
+  aisData.sequenceNumber = [];
+  aisData.sequenceNumber[0] = extractInt(binPayload, 38, 2);
+  var mmsi = extractInt(binPayload, 40, 30);
+  aisData.destinationMmsi = padLeft(mmsi.toString(), "0", 9);
+  aisData.retransmitted = Boolean(extractInt(binPayload, 70, 1));
+  if (nBits > 72) {
+    if (nBits > 72 + 936) nBits = 72 + 936;
+    var s = extractString(binPayload, 72, nBits).trim();
+    aisData.textMessage = normaliseString(s);
+  }
+  return "";
+}
+
+//
+// Decode type 14 message
+//
+function extractSafetyRelatedBroadcastMessage(aisData, binPayload, nBits) {
+  var lenerr = checkPayloadLength(aisData, nBits, 40);
+  if (lenerr) {
+    return lenerr;
+  }
+  if (nBits > 40) {
+    if (nBits > 40 + 968) nBits = 72 + 968;
+    var s = extractString(binPayload, 40, nBits).trim();
+    aisData.textMessage = normaliseString(s);
   }
   return "";
 }
