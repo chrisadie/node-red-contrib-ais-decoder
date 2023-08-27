@@ -1,4 +1,7 @@
 # CHANGELOG.md
+## 1.2.2
+- Message types 12 and 14 now supported.
+
 ## 1.2.1
 - Message type 13 (safety related acknowledgement) is now supported.
 - Message type 8 (DAC=1,FID=29) now decoded.
