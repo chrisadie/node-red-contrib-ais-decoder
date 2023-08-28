@@ -1,4 +1,7 @@
 # CHANGELOG.md
+## 1.2.4
+- Message type 27 now supported.
+- 
 ## 1.2.2
 - Message types 12 and 14 now supported.
 
