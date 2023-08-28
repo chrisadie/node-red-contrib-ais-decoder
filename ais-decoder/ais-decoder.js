@@ -406,6 +406,9 @@ function decodeAisSentence(frags,err) {
     case 25:
     err.reason = extractSingleSlotBinaryMessage(aisData,binPayload,nBits);
     break;
+    case 27:
+    err.reason = extractPositionReportForLongRangeApplications(aisData, binPayload, nBits);
+    break;
     default:
     err.reason = "Unsupported AIS message type " + aisData.messageType;
     break;
@@ -1243,6 +1246,37 @@ function extractSafetyRelatedBroadcastMessage(aisData, binPayload, nBits) {
     aisData.textMessage = normaliseString(s);
   }
   return "";
+}
+
+//
+// Decode type 27 message
+//
+function extractPositionReportForLongRangeApplications(aisData, binPayload, nBits) {
+    var lenerr = checkPayloadLength(aisData, nBits, 95);
+    if (lenerr) {
+        return lenerr;
+    }
+    if (nBits > 95) nBits = 95;
+    aisData.positionAccurate = Boolean(extractInt(binPayload, 38, 1));
+    aisData.raim = Boolean(extractInt(binPayload, 39, 1));
+    var n = extractInt(binPayload, 40, 4);
+    if (n != 15) {
+        aisData.navigationStatus = n;
+    }
+    aisData.longitude = extractLong(binPayload, 44, 18);
+    aisData.latitude = extractLat(binPayload, 62, 17);
+    var speed = extractInt(binPayload, 79, 6);
+    if (speed != 63) {
+        // Speed information is available
+        aisData.speedOverGround = speed;
+    }
+    var course = extractInt(binPayload, 85, 9);
+    if (course != 511) {
+        // Course information is available
+        aisData.courseOverGround = course;
+    }
+    aisData.gnss = Boolean(extractInt(binPayload, 94, 1));
+    return "";
 }
 
 //
