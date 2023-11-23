@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-ais-decoder",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Decodes AIS messages from an AIS receiver such as rtl-ais.",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 0"
