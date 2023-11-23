@@ -784,12 +784,17 @@ function extractStaticReport(aisData,binPayload,nBits) {
 }
 
 //
-// Replace one or more @ with spaces, then trim trailing space.
-// Return undefined if empty.
+// Optionally replace one or more @ with spaces, then
+// trim trailing @@s and spaces. Return undefined if empty.
 //
-function normaliseString(str) {
-  var result = str.replace(/@/g," ");
-  result = result.trim();
+function normaliseString(str,stripAtSign = true) {
+  var result = str;
+  if (stripAtSign) {
+    result = result.replace(/@/g, " ");
+    result = result.trim();
+  } else {
+    while (result.endsWith("@") || result.endsWith(" ")) result = result.slice(0, result.length - 1);
+  }  
   if (result=="") return undefined;
   return result;
 }
@@ -1227,7 +1232,7 @@ function extractAddressedSafetyRelatedMessage(aisData, binPayload, nBits) {
   if (nBits > 72) {
     if (nBits > 72 + 936) nBits = 72 + 936;
     var s = extractString(binPayload, 72, nBits).trim();
-    aisData.textMessage = normaliseString(s);
+    aisData.textMessage = normaliseString(s,false);
   }
   return "";
 }
@@ -1243,7 +1248,7 @@ function extractSafetyRelatedBroadcastMessage(aisData, binPayload, nBits) {
   if (nBits > 40) {
     if (nBits > 40 + 968) nBits = 72 + 968;
     var s = extractString(binPayload, 40, nBits).trim();
-    aisData.textMessage = normaliseString(s);
+    aisData.textMessage = normaliseString(s,false);
   }
   return "";
 }
@@ -1533,7 +1538,7 @@ function interpret_8_1_29(aisData,binPayload,start,nBits) {
   nBits -= 10;
   if (nBits>=6) {
     aisData.textMessage = extractString(binPayload,start,nBits).trim();
-    aisData.textMessage = normaliseString(aisData.textMessage);
+    aisData.textMessage = normaliseString(aisData.textMessage,false);
   }
 }
 
@@ -1579,7 +1584,7 @@ function interpret_25_1_0(aisData,binPayload,start,nBits) {
     start += 11;
     if (nBits>=start+6) {
       var s = extractString(binPayload,start,nBits-start).trim();
-      aisData.textMessage = normaliseString(s);
+      aisData.textMessage = normaliseString(s,false);
     }
   }
 }
